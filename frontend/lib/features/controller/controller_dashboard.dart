@@ -8,6 +8,8 @@ import '../../core/mock/mock_controller.dart';
 import '../../core/widgets/widgets.dart';
 import 'controller_auth.dart';
 import 'controller_state.dart';
+import 'panels/players_panel.dart';
+import 'panels/setup_panels.dart';
 import 'widgets/common.dart';
 
 /// The signed-in Controller dashboard: header, the main panel for the
@@ -29,7 +31,7 @@ class ControllerDashboard extends ConsumerWidget {
                 : LayoutBuilder(
                     builder: (context, box) {
                       final main = _MainPanel(state: s);
-                      const side = <Widget>[];
+                      const side = <Widget>[PlayersPanel()];
                       if (box.maxWidth < 980) {
                         return ListView(
                           padding: const EdgeInsets.all(16),
@@ -88,7 +90,8 @@ class _MainPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (state.phase) {
-      _ => Center(child: Text('Phase: ${state.phase}')),
+      'JOINING' => JoiningPanel(state: state),
+      _ => SetupPanel(state: state),
     };
   }
 }
