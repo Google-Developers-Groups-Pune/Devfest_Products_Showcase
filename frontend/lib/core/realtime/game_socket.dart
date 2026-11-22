@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import '../../app/env.dart';
+import '../mock/mock_controller.dart';
 import '../mock/mock_display.dart';
 import '../mock/mock_world.dart';
 
@@ -72,6 +73,13 @@ class GameSocket {
     if (namespace == '/display') {
       // The scripted audience show sends its own timer:sync.
       _worldSub = MockDisplay.events.stream.listen((e) => _emit(e.$1, e.$2));
+      Future<void>.delayed(Duration.zero, _onConnected);
+      return;
+    }
+    if (namespace == '/controller') {
+      // The mock booth sends its own timer:sync while a round runs.
+      MockController.startClock();
+      _worldSub = MockController.events.stream.listen((e) => _emit(e.$1, e.$2));
       Future<void>.delayed(Duration.zero, _onConnected);
       return;
     }

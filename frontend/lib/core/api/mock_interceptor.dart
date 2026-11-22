@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../mock/mock_controller.dart';
 import '../mock/mock_display.dart';
 import '../mock/mock_world.dart';
 
@@ -57,6 +58,22 @@ class MockInterceptor extends Interceptor {
         ),
       ),
     );
+
+    // Controller endpoints (FE-11 to FE-18, FE-27, FE-28).
+    if (options.path.startsWith('/api/controller/')) {
+      MockController.startClock();
+      try {
+        final (status, data) = MockController.handle(
+          options.method,
+          options.path,
+          {...options.queryParameters, ...body},
+          options.headers,
+        );
+        return ok(data ?? '', status);
+      } on MockError catch (e) {
+        return fail(e.status, e.code, e.message);
+      }
+    }
 
     // API 25: GET /api/player/prompts/:id (fallback if a socket event is missed)
     if (options.method == 'GET' &&
