@@ -1,0 +1,10 @@
+# Generates the typed Dart API client from the shared contract (FE-02).
+#   dart run swagger_parser
+#   dart run build_runner build
+swagger_parser:
+  schema_path: ../contract/openapi/openapi.yaml
+  output_directory: lib/core/api/generated
+  generation:
+    root_api_class_name: PromptHeistApi
+    http_client: retrofit
+    serializer: json_serializable

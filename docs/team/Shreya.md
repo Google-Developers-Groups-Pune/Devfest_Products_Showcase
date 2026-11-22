@@ -104,7 +104,7 @@ Give the backend engineers a repo they can all push to by the afternoon of Day 1
 **Acceptance criteria**
 
 - [ ] Node.js 22 + TypeScript + Express + Socket.IO skeleton, ESLint, Vitest, Dockerfile.
-- [ ] `GET /healthz` returns 200.
+- [ ] `GET /health` returns 200. Not `/healthz`: Cloud Run reserves some paths ending in `z`.
 - [ ] CI runs lint, tests and the Firestore emulator on every PR.
 - [ ] `Clock` interface exists so tests can control time.
 - [ ] Every log line is JSON and carries `correlationId`. Responses return `X-Correlation-Id`.
@@ -133,7 +133,7 @@ Stand up dev and prod in GCP so real Gemini, Firestore and Storage are usable fr
 
 > Why these settings: the server keeps timers and sockets in one process and scores prompts after the HTTP response. See decision D1 in STORIES.md. Cloud Run closes each socket at the 60-minute timeout, so client auto-reconnect (FE-02) is mandatory.
 
-**QE check:** Hit `https://<dev-url>/healthz`. Run a deploy and confirm the instance count stays at 1.
+**QE check:** Hit `https://<dev-url>/health`. Run a deploy and confirm the instance count stays at 1.
 
 ---
 
@@ -185,7 +185,8 @@ One deployable web app.
 
 - [ ] One Firebase Hosting site, with a rewrite so `/controller`, `/audience` and `/player` all open directly.
 - [ ] CI builds and deploys on merge to main.
-- [ ] Long cache on hashed assets, no cache on `index.html` and `flutter_bootstrap.js`.
+- [ ] Build with `--no-web-resources-cdn`, so CanvasKit is served from our site, not a Google CDN.
+- [ ] Deferred imports (FE-01) rule out content-hashed file names, so serve `index.html`, `flutter_bootstrap.js`, `main.dart.js` and `*.part.js` with `Cache-Control: no-cache` (revalidate on every load). Long cache only for files whose names never change content.
 - [ ] Records the release bundle size in CI.
 
 **QE check:** Open all three routes directly, and the player route on a phone over cellular. Note the first-load time.

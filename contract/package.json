@@ -1,0 +1,23 @@
+{
+  "name": "prompt-heist-contract",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared API contract (OpenAPI 3.1 + socket events), Prism mock server and game replay script (BE-02).",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "lint": "redocly lint openapi/openapi.yaml",
+    "mock": "prism mock --port 4010 openapi/openapi.yaml"
+  },
+  "devDependencies": {
+    "@redocly/cli": "^2.82.0",
+    "@stoplight/prism-cli": "^5.16.0",
+    "@types/node": "^22.20.5",
+    "socket.io": "^4.8.4",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3"
+  }
+}

@@ -1,0 +1,20 @@
+# Node (backend/, contract/)
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+
+# Firebase emulator output
+firebase-debug.log
+firestore-debug.log
+.firebase/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
+
+# Flutter has its own rules in frontend/.gitignore
