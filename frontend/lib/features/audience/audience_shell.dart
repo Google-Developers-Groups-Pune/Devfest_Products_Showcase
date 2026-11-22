@@ -6,6 +6,7 @@ import '../../app/env.dart';
 import '../../core/realtime/socket_providers.dart';
 import '../../core/widgets/shape_marker.dart';
 import 'audience_battle.dart';
+import 'audience_results.dart';
 import 'audience_state.dart';
 import 'audience_style.dart';
 
@@ -81,12 +82,13 @@ class AudienceShell extends ConsumerWidget {
       AudienceScreen.joining => _JoiningScreen(a),
       AudienceScreen.getReady => _GetReadyScreen(a),
       AudienceScreen.battle => AudienceBattle(state: a),
-      AudienceScreen.results => _ResultsPlaceholder(a),
+      AudienceScreen.results => AudienceResults(state: a),
+      AudienceScreen.discarded => const DiscardedScreen(),
     };
   }
 }
 
-enum AudienceScreen { idle, joining, getReady, battle, results }
+enum AudienceScreen { idle, joining, getReady, battle, results, discarded }
 
 /// The router: driven only by the session phase.
 AudienceScreen screenFor(String phase) => switch (phase) {
@@ -94,8 +96,9 @@ AudienceScreen screenFor(String phase) => switch (phase) {
   'TREASURE_REVIEW' || 'READY' => AudienceScreen.getReady,
   'PLAYING' => AudienceScreen.battle,
   'RESULT_PENDING' || 'RESULTS' => AudienceScreen.results,
-  // SETUP (no session open), DISCARDED, CLOSED. The discard reason is never
-  // shown on the public screen.
+  // The discard reason is never shown on the public screen.
+  'DISCARDED' => AudienceScreen.discarded,
+  // SETUP (no session open), CLOSED.
   _ => AudienceScreen.idle,
 };
 
@@ -386,29 +389,4 @@ class _GetReadyScreen extends StatelessWidget {
   );
 }
 
-// ================= RESULTS (FE-23) =================
-
-/// Placeholder until FE-23 (Harsimar) adds the audience result screens.
-class _ResultsPlaceholder extends StatelessWidget {
-  const _ResultsPlaceholder(this.a);
-  final AudienceState a;
-
-  @override
-  Widget build(BuildContext context) {
-    final winner = a.result?['winner'];
-    final confirmed = a.phase == 'RESULTS' && winner is Map;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const _Dots(),
-          const SizedBox(height: 40),
-          Text(
-            confirmed ? 'Winner: ${winner['label']}' : 'Calculating results…',
-            style: const TextStyle(fontSize: 120, fontWeight: FontWeight.w500),
-          ),
-        ],
-      ),
-    );
-  }
-}
+// RESULTS (FE-23): see audience_results.dart.

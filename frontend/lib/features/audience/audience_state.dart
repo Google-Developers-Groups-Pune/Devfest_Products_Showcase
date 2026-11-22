@@ -280,6 +280,13 @@ class AudienceState {
       case 'round:ended':
         return copyWith(phase: 'RESULT_PENDING');
 
+      case 'result:provisional':
+        // Winner and score only, shown as pending (D22).
+        return copyWith(
+          phase: 'RESULT_PENDING',
+          result: {'status': 'PROVISIONAL', 'winner': d['winner']},
+        );
+
       case 'result:confirmed':
         return copyWith(phase: 'RESULTS', result: d);
 

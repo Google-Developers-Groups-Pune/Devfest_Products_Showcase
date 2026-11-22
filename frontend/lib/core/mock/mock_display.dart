@@ -160,8 +160,14 @@ class MockDisplay {
     steps.add((roundStart + 30, null, () => _connection(4, 'CONNECTED')));
     t = roundStart + roundSeconds;
     at(0, _endRound, 'RESULT_PENDING');
-    at(5, _confirm);
-    at(12, _close);
+    at(4, _provisional);
+    // /audience?discard shows a discarded round instead of a winner.
+    if (Uri.base.queryParameters.containsKey('discard')) {
+      at(5, _discard);
+    } else {
+      at(5, _confirm, 'RESULTS');
+    }
+    at(20, _close);
     // nextSessionOpened: the next group starts joining straight away.
     at(3, () => _runShow(skipTo: 'JOINING'));
 
@@ -313,6 +319,28 @@ class MockDisplay {
     phase = 'RESULT_PENDING';
     _emit('round:ended', {'roundId': 'rnd_$_session', 'endedAt': _now()});
   }
+
+  static void _provisional() {
+    final top = _ranked().first;
+    _result = {
+      'status': 'PROVISIONAL',
+      'winner': {for (final k in ['slotNumber', 'label', 'shape', 'bestScore']) k: top[k]},
+    };
+    _emit('result:provisional', {'roundId': 'rnd_$_session', 'winner': _result!['winner']});
+  }
+
+  static void _discard() {
+    _result = null;
+    phase = 'DISCARDED';
+    _emit('round:discarded', {'sessionId': _sessionId, 'roundId': 'rnd_$_session'});
+  }
+
+  static List<Map<String, dynamic>> _ranked() => _publicPlayers()
+    ..sort(
+      (a, b) => ((b['bestScore'] as int?) ?? -1).compareTo(
+        (a['bestScore'] as int?) ?? -1,
+      ),
+    );
 
   static void _confirm() {
     final ranked = _publicPlayers()

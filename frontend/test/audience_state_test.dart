@@ -167,7 +167,7 @@ void main() {
     expect(screenFor('PLAYING'), AudienceScreen.battle);
     expect(screenFor('RESULT_PENDING'), AudienceScreen.results);
     expect(screenFor('RESULTS'), AudienceScreen.results);
-    expect(screenFor('DISCARDED'), AudienceScreen.idle);
+    expect(screenFor('DISCARDED'), AudienceScreen.discarded);
     expect(screenFor('CLOSED'), AudienceScreen.idle);
   });
 }
