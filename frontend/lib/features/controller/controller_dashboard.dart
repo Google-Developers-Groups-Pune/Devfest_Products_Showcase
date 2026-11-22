@@ -8,6 +8,7 @@ import '../../core/mock/mock_controller.dart';
 import '../../core/widgets/widgets.dart';
 import 'controller_auth.dart';
 import 'controller_state.dart';
+import 'panels/live_panel.dart';
 import 'panels/players_panel.dart';
 import 'panels/setup_panels.dart';
 import 'panels/treasure_panels.dart';
@@ -94,6 +95,7 @@ class _MainPanel extends StatelessWidget {
       'JOINING' => JoiningPanel(state: state),
       'TREASURE_REVIEW' => TreasurePanel(state: state),
       'READY' => ReadyPanel(state: state),
+      'PLAYING' => LivePanel(state: state),
       _ => SetupPanel(state: state),
     };
   }
