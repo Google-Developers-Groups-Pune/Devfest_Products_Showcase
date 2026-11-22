@@ -8,7 +8,7 @@ void main() {
   testWidgets('opens the player route by default', (tester) async {
     final router = await pumpApp(tester);
     expect(router.routerDelegate.currentConfiguration.uri.path, AppRoutes.player);
-    expect(find.text('Player'), findsOneWidget);
+    expect(find.text('Join'), findsOneWidget);
   });
 
   testWidgets('bare domain redirects to the player route', (tester) async {
@@ -16,6 +16,6 @@ void main() {
     router.go('/');
     await tester.pumpAndSettle();
     expect(router.routerDelegate.currentConfiguration.uri.path, AppRoutes.player);
-    expect(find.text('Player'), findsOneWidget);
+    expect(find.text('Join'), findsOneWidget);
   });
 }
