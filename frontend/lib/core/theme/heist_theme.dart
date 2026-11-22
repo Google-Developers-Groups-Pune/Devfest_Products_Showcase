@@ -77,3 +77,25 @@ ThemeData buildHeistTheme() {
     dividerTheme: DividerThemeData(color: c.border, space: 1),
   );
 }
+
+/// Applies the dark Heist theme to one surface (the Controller and gallery).
+/// The player and audience routes keep their own look.
+class HeistThemeScope extends StatelessWidget {
+  const HeistThemeScope({super.key, required this.child});
+
+  final Widget child;
+
+  static final ThemeData _theme = buildHeistTheme();
+
+  @override
+  Widget build(BuildContext context) => Theme(
+        data: _theme,
+        child: ColoredBox(
+          color: HeistColors.dark.page,
+          child: DefaultTextStyle(
+            style: TextStyle(color: HeistColors.dark.text, fontFamily: HeistFonts.sans),
+            child: child,
+          ),
+        ),
+      );
+}

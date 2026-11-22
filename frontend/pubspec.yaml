@@ -73,9 +73,21 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # FE-26: bundled, never fetched at runtime. Both are SIL OFL 1.1 (licences
-  # beside the files), subset to Latin with the weight axis kept.
+  # Bundled, never fetched at runtime (booth Wi-Fi can't be trusted).
   fonts:
+    - family: AppSans
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+    - family: AppMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+    - family: AppEmoji
+      fonts:
+        - asset: assets/fonts/NotoColorEmoji.ttf
+    # FE-26: Google Sans and Google Sans Code for the Controller and gallery.
+    # SIL OFL 1.1 (licences beside the files), subset to Latin.
     - family: GoogleSans
       fonts:
         - asset: assets/fonts/GoogleSans.ttf
