@@ -362,7 +362,7 @@ Needs all players joined. Moves `JOINING` to `TREASURE_REVIEW`. No request body.
 ```
 The result arrives on `treasure:ready` or `treasure:failed`.
 
-Errors: `409 PLAYERS_NOT_JOINED` · `409 INVALID_PHASE` · `409 GENERATION_IN_PROGRESS`
+Errors: `409 PLAYERS_NOT_JOINED` · `409 INVALID_PHASE` · `409 GENERATION_IN_PROGRESS` · `409 EVENT_CLOSING_FAILED`
 
 **API 8 · `POST /api/controller/treasure/:id/approve`** · Auth: Controller
 
@@ -370,7 +370,7 @@ Pins the treasure, rubric version and image. Immutable from here. Phase becomes 
 
 200: `{ "session": { "id": "ses_01", "phase": "READY" }, "treasure": { "candidateId": "cnd_1", "status": "APPROVED" } }`
 
-Errors: `404 NOT_FOUND` · `409 CANDIDATE_NOT_READY` (no image yet, or failed) · `409 INVALID_PHASE`
+Errors: `404 NOT_FOUND` · `409 CANDIDATE_NOT_READY` (no image yet, or failed) · `409 INVALID_PHASE` · `409 EVENT_CLOSING_FAILED`
 
 **API 9 · `POST /api/controller/treasure/:id/reject`** · Auth: Controller
 
@@ -378,7 +378,7 @@ One action, matching the "Reject and regenerate" button: marks it rejected and s
 
 202: `{ "rejectedCandidateId": "cnd_1", "candidate": { "candidateId": "cnd_2", "status": "GENERATING" } }`
 
-Errors: `404 NOT_FOUND` · `409 INVALID_PHASE`
+Errors: `404 NOT_FOUND` · `409 INVALID_PHASE` · `409 EVENT_CLOSING_FAILED`
 
 </details>
 
@@ -578,7 +578,7 @@ Reject and rename, typed by the Controller: `{ "decision": "RENAMED", "fullName"
 
 When the last name is approved, the server emits `players:revealed`.
 
-Errors: `404 NOT_FOUND` · `409 INVALID_PHASE` (`PLAYING` and later) · `422 NAME_REQUIRED`
+Errors: `404 NOT_FOUND` · `409 INVALID_PHASE` (`PLAYING` and later) · `422 NAME_REQUIRED` · `409 EVENT_CLOSING_FAILED`
 
 </details>
 

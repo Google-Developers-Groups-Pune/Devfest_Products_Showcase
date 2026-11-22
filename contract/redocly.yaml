@@ -1,2 +1,5 @@
 extends:
   - recommended
+oas3_1Rules:
+  # The servers are the local backend and the local mock on purpose. Deployed URLs are config (BE-38).
+  no-server-example.com: off

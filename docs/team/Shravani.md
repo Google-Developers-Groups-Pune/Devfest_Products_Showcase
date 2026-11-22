@@ -155,6 +155,7 @@ Deliver every event to the right audience and nobody else.
 `player:connection` → all
 ```json
 { "slotNumber": 2, "label": "Priya", "connection": "DISCONNECTED" }
+// label is null until players:revealed, so a disconnect in the lobby never shows a name early (D16).
 ```
 
 </details>
@@ -338,7 +339,7 @@ Sets `roundEndAt = now + duration`. Phase becomes `PLAYING`. No request body.
 { "round": { "roundId": "rnd_1", "roundNumber": 1, "durationSeconds": 90,
     "startedAt": "...", "roundEndAt": "...", "serverNow": "..." } }
 ```
-Errors: `409 PLAYERS_NOT_READY` (someone missing or disconnected) · `409 NAMES_NOT_REVIEWED` · `409 TREASURE_NOT_APPROVED` · `409 INVALID_PHASE` · `503 AGENTS_UNAVAILABLE` (any one agent down)
+Errors: `409 PLAYERS_NOT_READY` (someone missing or disconnected) · `409 NAMES_NOT_REVIEWED` · `409 TREASURE_NOT_APPROVED` · `409 INVALID_PHASE` · `503 AGENTS_UNAVAILABLE` (any one agent down) · `409 EVENT_CLOSING_FAILED`
 
 </details>
 

@@ -209,7 +209,7 @@ Request:
     "joinedCount": 0, "createdAt": "..." },
   "slots": [ { "slotNumber": 1, "code": "29", "shape": "BLUE_CIRCLE", "slotState": "UNJOINED", "player": null } ] }
 ```
-Errors: `409 SESSION_ALREADY_ACTIVE` · `409 EVENT_CLOSED` · `422 VALIDATION_FAILED`
+Errors: `409 SESSION_ALREADY_ACTIVE` · `409 EVENT_CLOSED` · `422 VALIDATION_FAILED` · `409 EVENT_CLOSING_FAILED`
 
 **API 5 · `GET /api/controller/sessions/active`** · Auth: Controller
 
@@ -240,7 +240,7 @@ Request: `{ "roundDurationSeconds": 120 }`. Allowed in `JOINING`, `TREASURE_REVI
 
 200: `{ "session": { "id": "ses_01", "roundDurationSeconds": 120 } }`
 
-Errors: `409 INVALID_PHASE` · `422 VALIDATION_FAILED`
+Errors: `409 INVALID_PHASE` · `422 VALIDATION_FAILED` · `409 EVENT_CLOSING_FAILED`
 
 **API 28 · `POST /api/controller/sessions/:id/close`** · Auth: Controller
 
@@ -250,7 +250,7 @@ Allowed from `JOINING`, `TREASURE_REVIEW` and `READY` (abandon), and from `RESUL
 
 200: `{ "session": { "id": "ses_01", "phase": "CLOSED" } }`
 
-Errors: `409 INVALID_PHASE`
+Errors: `409 INVALID_PHASE` · `422 REASON_REQUIRED` (abandon without a reason) · `409 EVENT_CLOSING_FAILED`
 
 </details>
 
@@ -267,6 +267,7 @@ Errors: `409 INVALID_PHASE`
 `player:connection` → all
 ```json
 { "slotNumber": 2, "label": "Priya", "connection": "DISCONNECTED" }
+// label is null until players:revealed, so a disconnect in the lobby never shows a name early (D16).
 ```
 
 `phase:changed` → all
@@ -311,7 +312,7 @@ Needs all players joined. Moves `JOINING` to `TREASURE_REVIEW`. No request body.
 ```
 The result arrives on `treasure:ready` or `treasure:failed`.
 
-Errors: `409 PLAYERS_NOT_JOINED` · `409 INVALID_PHASE` · `409 GENERATION_IN_PROGRESS`
+Errors: `409 PLAYERS_NOT_JOINED` · `409 INVALID_PHASE` · `409 GENERATION_IN_PROGRESS` · `409 EVENT_CLOSING_FAILED`
 
 **API 8 · `POST /api/controller/treasure/:id/approve`** · Auth: Controller
 
@@ -319,7 +320,7 @@ Pins the treasure, rubric version and image. Immutable from here. Phase becomes 
 
 200: `{ "session": { "id": "ses_01", "phase": "READY" }, "treasure": { "candidateId": "cnd_1", "status": "APPROVED" } }`
 
-Errors: `404 NOT_FOUND` · `409 CANDIDATE_NOT_READY` (no image yet, or failed) · `409 INVALID_PHASE`
+Errors: `404 NOT_FOUND` · `409 CANDIDATE_NOT_READY` (no image yet, or failed) · `409 INVALID_PHASE` · `409 EVENT_CLOSING_FAILED`
 
 **API 9 · `POST /api/controller/treasure/:id/reject`** · Auth: Controller
 
@@ -327,7 +328,7 @@ One action, matching the "Reject and regenerate" button: marks it rejected and s
 
 202: `{ "rejectedCandidateId": "cnd_1", "candidate": { "candidateId": "cnd_2", "status": "GENERATING" } }`
 
-Errors: `404 NOT_FOUND` · `409 INVALID_PHASE`
+Errors: `404 NOT_FOUND` · `409 INVALID_PHASE` · `409 EVENT_CLOSING_FAILED`
 
 </details>
 
@@ -379,7 +380,7 @@ Sets `roundEndAt = now + duration`. Phase becomes `PLAYING`. No request body.
 { "round": { "roundId": "rnd_1", "roundNumber": 1, "durationSeconds": 90,
     "startedAt": "...", "roundEndAt": "...", "serverNow": "..." } }
 ```
-Errors: `409 PLAYERS_NOT_READY` (someone missing or disconnected) · `409 NAMES_NOT_REVIEWED` · `409 TREASURE_NOT_APPROVED` · `409 INVALID_PHASE` · `503 AGENTS_UNAVAILABLE` (any one agent down)
+Errors: `409 PLAYERS_NOT_READY` (someone missing or disconnected) · `409 NAMES_NOT_REVIEWED` · `409 TREASURE_NOT_APPROVED` · `409 INVALID_PHASE` · `503 AGENTS_UNAVAILABLE` (any one agent down) · `409 EVENT_CLOSING_FAILED`
 
 **API 6 · `PATCH /api/controller/sessions/:id/duration`** · Auth: Controller
 
@@ -387,7 +388,7 @@ Request: `{ "roundDurationSeconds": 120 }`. Allowed in `JOINING`, `TREASURE_REVI
 
 200: `{ "session": { "id": "ses_01", "roundDurationSeconds": 120 } }`
 
-Errors: `409 INVALID_PHASE` · `422 VALIDATION_FAILED`
+Errors: `409 INVALID_PHASE` · `422 VALIDATION_FAILED` · `409 EVENT_CLOSING_FAILED`
 
 **API 18 · `GET /api/controller/health/agents`** · Auth: Controller
 
@@ -438,7 +439,7 @@ Reject and rename, typed by the Controller: `{ "decision": "RENAMED", "fullName"
 
 When the last name is approved, the server emits `players:revealed`.
 
-Errors: `404 NOT_FOUND` · `409 INVALID_PHASE` (`PLAYING` and later) · `422 NAME_REQUIRED`
+Errors: `404 NOT_FOUND` · `409 INVALID_PHASE` (`PLAYING` and later) · `422 NAME_REQUIRED` · `409 EVENT_CLOSING_FAILED`
 
 </details>
 
@@ -552,7 +553,7 @@ Safe to repeat: a second call returns the same result. Phase becomes `RESULTS`.
 
 200: `{ "result": { "status": "CONFIRMED", "roundNumber": 1, "confirmedAt": "..." }, "session": { "phase": "RESULTS" } }`
 
-Errors: `409 NO_WINNER` (must discard) · `409 INVALID_PHASE`
+Errors: `409 NO_WINNER` (must discard) · `409 INVALID_PHASE` · `409 EVENT_CLOSING_FAILED`
 
 **API 14 · `POST /api/controller/rounds/:id/discard`** · Auth: Controller
 
@@ -562,7 +563,7 @@ Ends the session with no winner. Phase becomes `DISCARDED`, which is final. Entr
 
 200: `{ "session": { "id": "ses_01", "phase": "DISCARDED" } }`
 
-Errors: `422 REASON_REQUIRED` · `409 INVALID_PHASE`
+Errors: `422 REASON_REQUIRED` · `409 INVALID_PHASE` · `409 EVENT_CLOSING_FAILED`
 
 </details>
 
@@ -624,7 +625,7 @@ No request body. Reuses the capacity and duration of the closed session.
   "session": { "id": "ses_02", "phase": "JOINING", "capacity": 5, "roundDurationSeconds": 90, "joinedCount": 0 },
   "slots": [ { "slotNumber": 1, "code": "41", "shape": "BLUE_CIRCLE", "slotState": "UNJOINED", "player": null } ] }
 ```
-Errors: `409 INVALID_PHASE` · `400 IDEMPOTENCY_KEY_REQUIRED`
+Errors: `409 INVALID_PHASE` · `400 IDEMPOTENCY_KEY_REQUIRED` · `409 EVENT_CLOSING_FAILED`
 
 **API 28 · `POST /api/controller/sessions/:id/close`** · Auth: Controller
 
@@ -634,7 +635,7 @@ Allowed from `JOINING`, `TREASURE_REVIEW` and `READY` (abandon), and from `RESUL
 
 200: `{ "session": { "id": "ses_01", "phase": "CLOSED" } }`
 
-Errors: `409 INVALID_PHASE`
+Errors: `409 INVALID_PHASE` · `422 REASON_REQUIRED` (abandon without a reason) · `409 EVENT_CLOSING_FAILED`
 
 </details>
 
