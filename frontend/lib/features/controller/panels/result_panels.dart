@@ -226,8 +226,10 @@ class _ConfirmedPanelState extends ConsumerState<ConfirmedPanel> {
     final s = widget.state;
     final c = context.hc;
     final r = s.result;
-    final winnerSlot = s.slots.where((x) => x.slotNumber == r?.winnerSlot).firstOrNull;
-    final player = winnerSlot?.player;
+    // Match by player ID from the winning ranking row; slot number as fallback.
+    final winnerId = r?.ranking.where((x) => x.rank == 1).firstOrNull?.playerId;
+    final player = s.slots.map((x) => x.player).whereType<CtlPlayer>().where((p) => p.id == winnerId).firstOrNull ??
+        s.slots.where((x) => x.slotNumber == r?.winnerSlot).firstOrNull?.player;
     return HeistCard(
       title: 'Winner confirmed',
       subtitle: 'The big screen shows the result while the MC tells the story.',

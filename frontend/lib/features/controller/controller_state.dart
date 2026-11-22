@@ -615,7 +615,7 @@ class ControllerState {
         if (feed.any((f) => f.sequence == item.sequence)) return this;
         final best = _int(d['bestScore']);
         return copyWith(
-          feed: [item, ...feed],
+          feed: [item, ...feed]..sort((a, b) => b.sequence.compareTo(a.sequence)),
           slots: [
             for (final s in slots)
               if (s.slotNumber == item.slotNumber && s.player != null && best != null)

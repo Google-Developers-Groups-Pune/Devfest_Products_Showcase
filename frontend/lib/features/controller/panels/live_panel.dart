@@ -79,10 +79,8 @@ class FeedRow extends StatelessWidget {
         children: [
           ScoreChip(item.score),
           ShapeAvatar(shapeOf(item.shape, item.slotNumber), size: 18),
-          SizedBox(
-            width: 90,
-            child: Text(item.label, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500)),
-          ),
+          // Labels are never cut: "Meera (Player 5)" must stay distinct.
+          SizedBox(width: 150, child: Text(item.label, style: const TextStyle(fontWeight: FontWeight.w500))),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

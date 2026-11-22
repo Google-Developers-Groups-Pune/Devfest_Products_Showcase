@@ -360,7 +360,7 @@ class _StoryCard extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
               child: AspectRatio(
-                aspectRatio: 16 / 9,
+                aspectRatio: 2.2,
                 child: Image.network(
                   image,
                   fit: BoxFit.cover,
@@ -384,7 +384,8 @@ class _StoryCard extends StatelessWidget {
           Expanded(
             child: Text(
               t?.backstory ?? '',
-              overflow: TextOverflow.fade,
+              maxLines: 6,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 30, height: 1.45),
             ),
           ),
