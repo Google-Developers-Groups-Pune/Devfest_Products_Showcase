@@ -8,9 +8,8 @@ import '../../../core/api/player_api.dart';
 import 'join_state.dart';
 import '../../../core/api/token_store.dart';
 import '../../../core/storage/player_session.dart';
-
-const _blue = Color(0xFF4285F4);
-const _red = Color(0xFFEA4335);
+import '../../../core/widgets/widgets.dart';
+import '../widgets/player_ui.dart';
 
 String boothErrorText(Object e) {
   if (e is ApiException) {
@@ -102,8 +101,14 @@ class _BoothCodePageState extends ConsumerState<BoothCodePage> {
     ValueChanged<String>? onSubmitted,
     required ValueChanged<String> onChanged,
   }) {
+    final hc = context.hc;
+    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(color: color, width: width),
+    );
+    final hasError = _error != null;
     return SizedBox(
-      width: 72,
+      width: 64,
       child: TextField(
         key: key,
         controller: c,
@@ -115,21 +120,14 @@ class _BoothCodePageState extends ConsumerState<BoothCodePage> {
           FilteringTextInputFormatter.digitsOnly,
           LengthLimitingTextInputFormatter(1),
         ],
-        style: const TextStyle(
-          fontFamily: 'AppMono',
-          fontSize: 36,
-          fontWeight: FontWeight.w600,
+        style: context.mono(
+          TextStyle(fontSize: 32, fontWeight: FontWeight.w500, color: hc.text),
         ),
         decoration: InputDecoration(
           counterText: '',
-          contentPadding: const EdgeInsets.symmetric(vertical: 18),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: _error != null ? _red : Colors.black26,
-            ),
-          ),
+          contentPadding: const EdgeInsets.symmetric(vertical: 16),
+          enabledBorder: border(hasError ? hc.dangerBorder : hc.borderStrong, hasError ? 2 : 1),
+          focusedBorder: border(hasError ? hc.dangerBorder : hc.accent, 2),
         ),
         onChanged: onChanged,
         onSubmitted: onSubmitted,
@@ -139,91 +137,126 @@ class _BoothCodePageState extends ConsumerState<BoothCodePage> {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.hc;
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Enter your booth code',
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Two digits, from the booth screen.',
-                    style: TextStyle(color: Colors.black54),
-                  ),
-                  const SizedBox(height: 28),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _box(
-                        const Key('code0'),
-                        _c1,
-                        _f1,
-                        onChanged: (v) {
-                          setState(() => _error = null);
-                          if (v.isNotEmpty) _f2.requestFocus();
-                        },
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    const HeroBanner(
+                      color: heroBlue,
+                      padding: EdgeInsets.fromLTRB(20, 56, 20, 84),
+                      child: Column(
+                        spacing: 6,
+                        children: [
+                          Text(
+                            'Prompt Heist',
+                            style: TextStyle(fontSize: 34, fontWeight: FontWeight.w500),
+                          ),
+                          Text('DevFest Pune 2026', style: TextStyle(fontSize: 14)),
+                        ],
                       ),
-                      const SizedBox(width: 14),
-                      _box(
-                        const Key('code1'),
-                        _c2,
-                        _f2,
-                        onSubmitted: (_) => _submit(),
-                        onChanged: (v) {
-                          setState(() => _error = null);
-                          if (v.isEmpty) _f1.requestFocus();
-                        },
+                    ),
+                    // The card overlaps the banner.
+                    Transform.translate(
+                      offset: const Offset(0, -44),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 420),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: _card(c),
+                          ),
+                        ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
+                    ),
+                    Transform.translate(
+                      offset: const Offset(0, -28),
                       child: Text(
-                        _error!,
-                        key: const Key('boothError'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: _red),
+                        'Write the prompt that cracks the vault',
+                        style: TextStyle(color: c.textSecondary),
                       ),
                     ),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(backgroundColor: _blue),
-                      onPressed: _ready ? _submit : null,
-                      child: _busy
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text('Join', style: TextStyle(fontSize: 18)),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: () => context.go('/player/rejoin'),
-                    child: const Text('Rejoin a game'),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: TextButton(
+                onPressed: () => context.go('/player/rejoin'),
+                style: TextButton.styleFrom(
+                  foregroundColor: c.accent,
+                  minimumSize: const Size(0, 44),
+                  textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500, fontFamily: HeistFonts.sans),
+                ),
+                child: const Text('Rejoin a game'),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+
+  Widget _card(HeistColors c) => Container(
+    padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+    decoration: BoxDecoration(
+      color: c.surface,
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: c.border),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 12,
+      children: [
+        Text(
+          'Booth code',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: c.text, fontSize: 16, fontWeight: FontWeight.w500),
+        ),
+        Text(
+          'Two digits, from the booth screen.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: c.textSecondary, fontSize: 13),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          spacing: 12,
+          children: [
+            _box(
+              const Key('code0'),
+              _c1,
+              _f1,
+              onChanged: (v) {
+                setState(() => _error = null);
+                if (v.isNotEmpty) _f2.requestFocus();
+              },
+            ),
+            _box(
+              const Key('code1'),
+              _c2,
+              _f2,
+              onSubmitted: (_) => _submit(),
+              onChanged: (v) {
+                setState(() => _error = null);
+                if (v.isEmpty) _f1.requestFocus();
+              },
+            ),
+          ],
+        ),
+        if (_error != null)
+          Text(
+            _error!,
+            key: const Key('boothError'),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: c.dangerText, fontSize: 13, height: 1.4),
+          ),
+        PrimaryButton(label: 'Join', busy: _busy, onPressed: _ready ? _submit : null),
+      ],
+    ),
+  );
 }

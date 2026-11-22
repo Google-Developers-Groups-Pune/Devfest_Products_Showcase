@@ -8,13 +8,10 @@ import '../../../core/realtime/game_socket.dart';
 import '../../../core/realtime/socket_providers.dart';
 import '../../../core/storage/player_session.dart';
 import '../../../core/timer/countdown.dart';
-import '../../../core/widgets/countdown_pill.dart';
-import '../../../core/theme/score_colors.dart';
+import '../../../core/widgets/widgets.dart';
+import '../widgets/player_ui.dart';
 import 'game_state.dart';
 import 'prompt_tile.dart';
-
-const _blue = Color(0xFF4285F4);
-const _red = Color(0xFFEA4335);
 
 class BattlePage extends ConsumerStatefulWidget {
   const BattlePage({super.key});
@@ -70,294 +67,196 @@ class _BattlePageState extends ConsumerState<BattlePage> {
     final reconnecting = socketStatus == SocketStatus.reconnecting;
 
     if (!game.ready || game.round == null || game.treasure == null) {
-      return const Scaffold(
-        body: Center(child: Text('Waiting for the round to start…')),
-      );
+      return const PlayerLoading(message: 'Waiting for the round to start…');
     }
 
+    final c = context.hc;
     final total = game.round!.durationSeconds * 1000;
     final progress = clock.active
         ? (clock.remaining.inMilliseconds / total).clamp(0.0, 1.0)
         : 1.0;
+    final paused = reconnecting || clock.reconnecting || !clock.active;
+    final tone = paused ? Tone.neutral : TimerPill.toneFor(clock.remaining);
+    final barColor = switch (tone) {
+      Tone.danger => HeistColors.red,
+      Tone.warning => HeistColors.yellow,
+      _ => HeistColors.blue,
+    };
+    final bestChip = _BestChip(
+      game.bestScore,
+      // Mock only: long-press to test the reconnecting state.
+      onLongPress: Env.isMock
+          ? () => socket.simulateOffline(const Duration(seconds: 10))
+          : null,
+    );
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(
-                children: [
-                  const CountdownPill(),
-                  const Spacer(),
-                  _BestChip(
-                    game.bestScore,
-                    // Mock only: long-press to test the reconnecting state.
-                    onLongPress: Env.isMock
-                        ? () => socket.simulateOffline(
-                            const Duration(seconds: 10),
-                          )
-                        : null,
-                  ),
-                ],
-              ),
-            ),
-            LinearProgressIndicator(
+    if (game.locked) {
+      return _UnlockedView(clock: clock, reconnecting: reconnecting);
+    }
+
+    return PlayerPage(
+      top: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 10,
+        children: [
+          if (reconnecting) const _ReconnectingBanner(),
+          Row(
+            children: [
+              _Clock(clock: clock, tone: tone),
+              const Spacer(),
+              bestChip,
+            ],
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
               value: progress,
               minHeight: 4,
-              backgroundColor: Colors.black12,
-              color: clock.expired ? _red : _blue,
+              color: barColor,
+              backgroundColor: c.border,
             ),
-            if (reconnecting) const _ReconnectingBanner(),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  _TreasureCard(game.treasure!),
-                  const SizedBox(height: 16),
-                  if (game.prompts.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'Write a prompt below to convince the Guard.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.black54),
-                      ),
-                    ),
-                  for (final p in game.prompts.reversed)
-                    PromptTile(
-                      p,
-                      key: ValueKey(p.key),
-                      onRetry: () => ref.read(gameProvider.notifier).retry(p),
-                      onEdit: () => _edit(p.text),
-                    ),
-                ],
-              ),
-            ),
-            if (game.locked) const _UnlockedBanner(),
-            Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: Colors.black12)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      key: const Key('promptField'),
-                      controller: _text,
-                      focusNode: _focus,
-                      enabled: game.canSubmit,
-                      minLines: 1,
-                      maxLines: 4,
-                      maxLength: 200,
-                      textInputAction: TextInputAction.send,
-                      onChanged: (_) => setState(() {}),
-                      onSubmitted: (_) => _send(),
-                      decoration: InputDecoration(
-                        hintText: 'Write your prompt…',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: IconButton.filled(
-                      key: const Key('sendButton'),
-                      style: IconButton.styleFrom(backgroundColor: _blue),
-                      onPressed: game.canSubmit && _text.text.trim().isNotEmpty
-                          ? _send
-                          : null,
-                      icon: const Icon(Icons.send_rounded),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
+      content: [
+        _TreasureCard(game.treasure!),
+        if (game.prompts.isEmpty)
+          const InfoCard(
+            child: IconLine(
+              Icons.tips_and_updates_outlined,
+              'Write a prompt below to convince the Guard. Cover every part '
+              'of the objective to reach 100.',
+            ),
+          )
+        else
+          Text(
+            'Your prompts',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: c.textSecondary,
+            ),
+          ),
+        for (final p in game.prompts.reversed)
+          PromptTile(
+            p,
+            key: ValueKey(p.key),
+            onRetry: () => ref.read(gameProvider.notifier).retry(p),
+            onEdit: () => _edit(p.text),
+          ),
+      ],
+      bottom: [_composer(c, game.canSubmit, reconnecting)],
     );
   }
-}
 
-/// FE-10: shown after this player reaches 100. The input stays disabled and
-/// the timer keeps running, because the winner is decided at 00:00.
-class _UnlockedBanner extends StatelessWidget {
-  const _UnlockedBanner();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    key: const Key('unlockedBanner'),
-    width: double.infinity,
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    color: const Color(0xFFE6F4EA),
-    child: const Row(
+  Widget _composer(HeistColors c, bool enabled, bool reconnecting) {
+    final length = _text.text.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 4,
       children: [
-        Icon(Icons.lock_open_rounded, color: Color(0xFF34A853), size: 32),
-        SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        if (length > 0)
+          Text(
+            '$length / 200',
+            textAlign: TextAlign.right,
+            style: context.mono(
+              TextStyle(
+                fontSize: 11,
+                color: length > 170 ? c.warningText : c.textMuted,
+              ),
+            ),
+          ),
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 6, 6, 6),
+          decoration: BoxDecoration(
+            color: enabled ? c.surface : c.card,
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: c.borderStrong),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            spacing: 8,
             children: [
-              Text(
-                'Treasure unlocked!',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF137333),
+              Expanded(
+                child: TextField(
+                  key: const Key('promptField'),
+                  controller: _text,
+                  focusNode: _focus,
+                  enabled: enabled,
+                  minLines: 1,
+                  maxLines: 5,
+                  maxLength: 200,
+                  buildCounter: (
+                    _, {
+                    required currentLength,
+                    required isFocused,
+                    maxLength,
+                  }) => null,
+                  textInputAction: TextInputAction.send,
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (_) => _send(),
+                  decoration: InputDecoration(
+                    hintText: reconnecting
+                        ? 'Paused until you are back online'
+                        : 'Write your prompt…',
+                    filled: false,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
                 ),
               ),
-              SizedBox(height: 2),
-              Text(
-                'You scored 100. The winner is decided when the timer hits 00:00.',
-                style: TextStyle(fontSize: 13, color: Colors.black87),
+              IconButton.filled(
+                key: const Key('sendButton'),
+                tooltip: 'Send',
+                style: IconButton.styleFrom(
+                  backgroundColor: c.accent,
+                  foregroundColor: c.onAccent,
+                  disabledBackgroundColor: c.border,
+                  minimumSize: const Size(48, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                onPressed:
+                    enabled && _text.text.trim().isNotEmpty ? _send : null,
+                icon: const Icon(Icons.send_rounded),
               ),
             ],
           ),
         ),
       ],
-    ),
-  );
-}
-
-class _ReconnectingBanner extends StatelessWidget {
-  const _ReconnectingBanner();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    color: const Color(0xFFFFF4D6),
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-    child: const Row(
-      children: [
-        SizedBox(
-          width: 14,
-          height: 14,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-        SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            'Reconnecting… your game is still running.',
-            style: TextStyle(fontSize: 13),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-class _BestChip extends StatelessWidget {
-  const _BestChip(this.best, {this.onLongPress});
-  final int? best;
-  final VoidCallback? onLongPress;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = best == null ? Colors.black45 : scoreColor(best!);
-    return GestureDetector(
-      onLongPress: onLongPress,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          'Best: ${best ?? '—'}',
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-      ),
     );
   }
 }
 
-class _TreasureCard extends StatelessWidget {
-  const _TreasureCard(this.t);
-  final Treasure t;
-
-  void _story(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                t.title,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                t.backstory,
-                style: const TextStyle(fontSize: 16, height: 1.4),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+/// The countdown pill: blue, yellow in the last 30 s, red in the last 10 s.
+class _Clock extends StatelessWidget {
+  const _Clock({required this.clock, required this.tone});
+  final CountdownState clock;
+  final Tone tone;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Colors.black12),
+    final (bg, fg) = tone.colors(context.hc);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      padding: const EdgeInsets.fromLTRB(12, 6, 16, 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 6,
         children: [
-          AspectRatio(aspectRatio: 16 / 9, child: _TreasureImage(t.imageUrl)),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  t.title,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'LOCK OBJECTIVE',
-                  style: TextStyle(
-                    fontSize: 11,
-                    letterSpacing: 1,
-                    color: Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(t.lockObjective),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-            child: TextButton.icon(
-              onPressed: () => _story(context),
-              icon: const Icon(Icons.menu_book_rounded, size: 18),
-              label: const Text('Read the story'),
+          Icon(Icons.timer_outlined, size: 20, color: fg),
+          Text(
+            clock.active ? clock.label : '--:--',
+            style: context.mono(
+              TextStyle(fontSize: 22, fontWeight: FontWeight.w500, color: fg),
             ),
           ),
         ],
@@ -366,28 +265,321 @@ class _TreasureCard extends StatelessWidget {
   }
 }
 
-/// A missing or slow image never blocks the timer or the input.
-class _TreasureImage extends StatelessWidget {
-  const _TreasureImage(this.url);
-  final String url;
+/// FE-10: shown after this player reaches 100. There is no input and the
+/// timer keeps running, because the winner is decided at 00:00.
+class _UnlockedView extends StatelessWidget {
+  const _UnlockedView({required this.clock, required this.reconnecting});
+  final CountdownState clock;
+  final bool reconnecting;
 
-  Widget _placeholder() => Container(
-    color: const Color(0xFFEAF1FE),
-    alignment: Alignment.center,
-    child: const Icon(Icons.diamond_outlined, size: 56, color: _blue),
-  );
+  static const _ink = HeistColors.ink;
 
   @override
   Widget build(BuildContext context) {
-    if (url.isEmpty) return _placeholder();
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
-      loadingBuilder: (_, child, progress) =>
-          progress == null ? child : _placeholder(),
-      errorBuilder: (_, _, _) => _placeholder(),
+    return Scaffold(
+      key: const Key('unlockedBanner'),
+      backgroundColor: HeistColors.yellow,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            const Positioned(
+              left: -30,
+              top: 60,
+              child: _Blob(HeistColors.red, 96, 48),
+            ),
+            Positioned(
+              right: -14,
+              top: 170,
+              child: Transform.rotate(
+                angle: 0.38,
+                child: const _Blob(HeistColors.blue, 72, 20),
+              ),
+            ),
+            Positioned(
+              left: 24,
+              bottom: 90,
+              child: Transform.rotate(
+                angle: -0.2,
+                child: const _Blob(HeistColors.green, 130, 999, height: 46),
+              ),
+            ),
+            Column(
+              children: [
+                if (reconnecting)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: _ReconnectingBanner(),
+                  ),
+                Expanded(
+                  child: Center(
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.5, end: 1),
+                      duration: const Duration(milliseconds: 900),
+                      curve: Curves.elasticOut,
+                      builder: (context, t, child) =>
+                          Transform.scale(scale: t, child: child),
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 12,
+                          children: [
+                            Transform.rotate(
+                              angle: -0.1,
+                              child: Container(
+                                width: 104,
+                                height: 104,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(32),
+                                ),
+                                child: const Icon(
+                                  Icons.lock_open_rounded,
+                                  size: 52,
+                                  color: Color(0xFF7A4F00),
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '100',
+                              style: context.mono(
+                                const TextStyle(
+                                  fontSize: 64,
+                                  fontWeight: FontWeight.w500,
+                                  color: _ink,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                            const Text(
+                              'Treasure unlocked!',
+                              style: TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.w500,
+                                color: _ink,
+                              ),
+                            ),
+                            const SizedBox(
+                              width: 280,
+                              child: Text(
+                                'You scored 100. The winner is decided when the '
+                                'timer hits 00:00. The earliest 100 wins a tie.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Color(0xFF412402),
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                            if (clock.active)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  '${clock.label} left',
+                                  style: context.mono(
+                                    const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                      color: _ink,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Blob extends StatelessWidget {
+  const _Blob(this.color, this.width, this.radius, {this.height});
+  final Color color;
+  final double width;
+  final double radius;
+  final double? height;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: width,
+    height: height ?? width,
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(radius),
+    ),
+  );
+}
+
+class _ReconnectingBanner extends StatelessWidget {
+  const _ReconnectingBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.hc;
+    return InfoCard(
+      tone: Tone.warning,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      child: Row(
+        spacing: 10,
+        children: [
+          SizedBox.square(
+            dimension: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: c.warningText,
+            ),
+          ),
+          const Expanded(
+            child: Text('Reconnecting… your game is still running.'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BestChip extends StatelessWidget {
+  const _BestChip(this.best, {this.onLongPress});
+  final int? best;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onLongPress: onLongPress,
+    child: StatusChip(
+      best == null ? 'No score yet' : 'Best $best',
+      tone: scoreTone(best),
+    ),
+  );
+}
+
+class _TreasureCard extends StatelessWidget {
+  const _TreasureCard(this.t);
+  final Treasure t;
+
+  void _story(BuildContext context) {
+    final c = context.hc;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: c.surface,
+      builder: (_) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            spacing: 12,
+            children: [
+              Text(
+                t.title,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w500,
+                  color: c.text,
+                ),
+              ),
+              Text(
+                t.backstory,
+                style: TextStyle(
+                  fontSize: 16,
+                  height: 1.5,
+                  color: c.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.hc;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: ColoredBox(
+        color: c.warningBg,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AspectRatio(aspectRatio: 16 / 9, child: TreasureImage(t.imageUrl)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 8, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 6,
+                children: [
+                  Row(
+                    spacing: 8,
+                    children: [
+                      Icon(
+                        Icons.diamond_outlined,
+                        color: c.warningText,
+                        size: 22,
+                      ),
+                      Expanded(
+                        child: Text(
+                          t.title,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w500,
+                            color: c.text,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => _story(context),
+                        style: TextButton.styleFrom(
+                          foregroundColor: c.warningText,
+                          minimumSize: const Size(0, 32),
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          textStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            fontFamily: HeistFonts.sans,
+                          ),
+                        ),
+                        child: const Text('Read the story'),
+                      ),
+                    ],
+                  ),
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        const TextSpan(
+                          text: 'Objective: ',
+                          style: TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        TextSpan(text: t.lockObjective),
+                      ],
+                    ),
+                    style: TextStyle(fontSize: 14, color: c.text, height: 1.45),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

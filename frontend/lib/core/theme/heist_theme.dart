@@ -94,7 +94,12 @@ class HeistThemeScope extends StatelessWidget {
           color: HeistColors.dark.page,
           child: DefaultTextStyle(
             style: TextStyle(color: HeistColors.dark.text, fontFamily: HeistFonts.sans),
-            child: child,
+            // MaterialApp sets the cursor from the outer theme; use our blue.
+            child: DefaultSelectionStyle(
+              cursorColor: HeistColors.dark.accent,
+              selectionColor: HeistColors.dark.accent.withValues(alpha: 0.35),
+              child: child,
+            ),
           ),
         ),
       );

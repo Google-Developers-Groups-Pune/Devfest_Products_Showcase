@@ -7,10 +7,9 @@ import '../../../core/api/api_error.dart';
 import '../../../core/api/token_store.dart';
 import '../../../core/realtime/socket_providers.dart';
 import '../../../core/storage/player_session.dart';
-import '../../../core/widgets/shape_marker.dart';
+import '../../../core/widgets/widgets.dart';
+import '../widgets/player_ui.dart';
 import 'lobby_state.dart';
-
-const _blue = Color(0xFF4285F4);
 
 class LobbyPage extends ConsumerStatefulWidget {
   const LobbyPage({super.key});
@@ -70,96 +69,114 @@ class _LobbyPageState extends ConsumerState<LobbyPage> {
 
     if (!lobby.ready) {
       final failed = ref.watch(meProvider).hasError;
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (!failed) const CircularProgressIndicator(),
-              if (failed) ...[
-                const Text('Cannot reach the server.'),
-                TextButton(
-                  onPressed: () => ref.invalidate(meProvider),
-                  child: const Text('Try again'),
-                ),
-              ],
-            ],
-          ),
-        ),
+      return PlayerLoading(
+        message: failed ? 'Cannot reach the server.' : null,
+        onRetry: failed ? () => ref.invalidate(meProvider) : null,
       );
     }
 
-    final info = shapeInfo[lobby.myShape] ?? shapeInfo['BLUE_CIRCLE']!;
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Waiting for players',
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ShapeMarker(lobby.myShape ?? 'BLUE_CIRCLE', size: 28),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Your shape: ${info.name}',
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 28),
-                  Text(
-                    '${lobby.joinedCount}/${lobby.capacity} joined',
-                    key: const Key('joinedCount'),
-                    style: const TextStyle(
-                      fontFamily: 'AppMono',
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _Segments(joined: lobby.joinedCount, total: lobby.capacity),
-                  const SizedBox(height: 24),
-                  if (lobby.revealed)
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final p in lobby.players)
-                          _PlayerPill(p, isMe: p.slotNumber == lobby.mySlot),
-                      ],
-                    )
-                  else
-                    const Text(
-                      'Names appear when everyone has joined.',
-                      style: TextStyle(color: Colors.black54),
-                    ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'The game starts by itself. Keep this screen open.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.black54),
-                  ),
-                ],
-              ),
+    final c = context.hc;
+    final shape = slotShapeOf(lobby.myShape);
+    final first = (lobby.myLabel ?? '').split(' ').first;
+    return PlayerPage(
+      header: HeroBanner(
+        color: heroGreen,
+        child: Column(
+          spacing: 6,
+          children: [
+            const Text(
+              "You're in!",
+              style: TextStyle(fontSize: 30, fontWeight: FontWeight.w500),
             ),
-          ),
+            Text(
+              first.isEmpty
+                  ? 'Waiting for players'
+                  : 'Look for $first on the big screen',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ],
         ),
       ),
+      content: [
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Text(
+              'Waiting for players',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: c.text,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${lobby.joinedCount}/${lobby.capacity} joined',
+              key: const Key('joinedCount'),
+              style: context.mono(TextStyle(color: c.textSecondary)),
+            ),
+          ],
+        ),
+        _Segments(joined: lobby.joinedCount, total: lobby.capacity),
+        if (lobby.revealed)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final p in lobby.players)
+                PlayerPill(
+                  shape: slotShapeOf(p.shape),
+                  label: p.label,
+                  isMe: p.slotNumber == lobby.mySlot,
+                  dimmed: p.connection == 'DISCONNECTED',
+                ),
+            ],
+          )
+        else
+          const InfoCard(
+            child: IconLine(
+              Icons.groups_outlined,
+              'Names appear when everyone has joined.',
+            ),
+          ),
+      ],
+      bottom: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          spacing: 8,
+          children: [
+            ShapeAvatar(shape, size: 18),
+            Flexible(
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    const TextSpan(text: 'Your shape: '),
+                    TextSpan(
+                      text: shape.description,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: shape.tone.colors(c).$2,
+                      ),
+                    ),
+                  ],
+                ),
+                style: TextStyle(color: c.textSecondary),
+              ),
+            ),
+          ],
+        ),
+        Text(
+          'The game starts by itself. Keep this screen open.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: c.textMuted),
+        ),
+      ],
     );
   }
 }
 
+/// One bar per slot, filled in that slot's colour as players join.
 class _Segments extends StatelessWidget {
   const _Segments({required this.joined, required this.total});
   final int joined;
@@ -167,47 +184,21 @@ class _Segments extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
+    spacing: 4,
     children: [
       for (var i = 0; i < total; i++)
         Expanded(
-          child: Container(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
             height: 8,
-            margin: EdgeInsets.only(right: i == total - 1 ? 0 : 6),
             decoration: BoxDecoration(
-              color: i < joined ? _blue : Colors.black12,
-              borderRadius: BorderRadius.circular(4),
+              color: i < joined
+                  ? SlotShape.forSlot(i + 1).color
+                  : context.hc.border,
+              borderRadius: BorderRadius.circular(999),
             ),
           ),
         ),
     ],
-  );
-}
-
-class _PlayerPill extends StatelessWidget {
-  const _PlayerPill(this.p, {required this.isMe});
-  final PublicPlayer p;
-  final bool isMe;
-
-  @override
-  Widget build(BuildContext context) => Opacity(
-    opacity: p.connection == 'DISCONNECTED' ? 0.45 : 1,
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: isMe ? _blue : Colors.black26,
-          width: isMe ? 2 : 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ShapeMarker(p.shape, size: 14),
-          const SizedBox(width: 8),
-          Text(isMe ? '${p.label} (you)' : p.label),
-        ],
-      ),
-    ),
   );
 }

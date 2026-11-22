@@ -8,10 +8,9 @@ import '../../../core/api/player_api.dart';
 import '../../../core/api/token_store.dart';
 import '../../../core/storage/player_session.dart';
 import '../player_routes.dart';
+import '../../../core/widgets/widgets.dart';
+import '../widgets/player_ui.dart';
 import 'join_state.dart';
-
-const _blue = Color(0xFF4285F4);
-const _red = Color(0xFFEA4335);
 
 String rejoinErrorText(Object e) {
   if (e is ApiException) {
@@ -78,104 +77,61 @@ class _RejoinPageState extends ConsumerState<RejoinPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        color: _blue.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.login_rounded,
-                        size: 34,
-                        color: _blue,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Rejoin your game',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Enter the entrance ID you joined with.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.black54),
-                  ),
-                  const SizedBox(height: 28),
-                  TextField(
-                    key: const Key('rejoinIdField'),
-                    controller: _id,
-                    autofocus: true,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    textInputAction: TextInputAction.done,
-                    inputFormatters: [LengthLimitingTextInputFormatter(128)],
-                    decoration: InputDecoration(
-                      labelText: 'Entrance ID',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    onChanged: (_) => setState(() => _error = null),
-                    onSubmitted: (_) => _submit(),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(
-                        _error!,
-                        key: const Key('rejoinError'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: _red),
-                      ),
-                    ),
-                  SizedBox(
-                    height: 52,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(backgroundColor: _blue),
-                      onPressed: _busy ? null : _submit,
-                      child: _busy
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text(
-                              'Rejoin',
-                              style: TextStyle(fontSize: 18),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: () => context.go('/player'),
-                    child: const Text('Back'),
-                  ),
-                ],
-              ),
+    final c = context.hc;
+    return PlayerPage(
+      top: PlayerTopBar(onBack: () => context.go('/player')),
+      content: [
+        const PageTitle(
+          'Welcome back',
+          subtitle:
+              'Lost connection or switched phones? Enter the entrance ID you joined with.',
+        ),
+        LabelledField(
+          label: 'Entrance ID',
+          field: TextField(
+            key: const Key('rejoinIdField'),
+            controller: _id,
+            autofocus: true,
+            autocorrect: false,
+            enableSuggestions: false,
+            textInputAction: TextInputAction.done,
+            inputFormatters: [LengthLimitingTextInputFormatter(128)],
+            style: context.mono(TextStyle(fontSize: 16, color: c.text)),
+            decoration: InputDecoration(
+              hintText: 'From your entrance badge',
+              hintStyle: TextStyle(fontFamily: HeistFonts.sans, color: c.textMuted),
             ),
+            onChanged: (_) => setState(() => _error = null),
+            onSubmitted: (_) => _submit(),
           ),
         ),
-      ),
+        if (_error != null)
+          InfoCard(
+            tone: Tone.danger,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 8,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Icon(Icons.error_outline),
+                ),
+                Expanded(child: Text(_error!, key: const Key('rejoinError'))),
+              ],
+            ),
+          )
+        else
+          const InfoCard(
+            tone: Tone.accent,
+            child: IconLine(
+              Icons.devices_outlined,
+              'Any other device playing as you will be signed out.',
+            ),
+          ),
+      ],
+      bottom: [
+        PrimaryButton(label: 'Rejoin', busy: _busy, onPressed: _submit),
+      ],
     );
   }
 }

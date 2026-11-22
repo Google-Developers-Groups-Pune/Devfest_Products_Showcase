@@ -7,10 +7,9 @@ import '../../../core/api/api_error.dart';
 import '../../../core/api/player_api.dart';
 import '../../../core/api/token_store.dart';
 import '../../../core/storage/player_session.dart';
+import '../../../core/widgets/widgets.dart';
+import '../widgets/player_ui.dart';
 import 'join_state.dart';
-
-const _blue = Color(0xFF4285F4);
-const _red = Color(0xFFEA4335);
 
 class NameIdPage extends ConsumerStatefulWidget {
   const NameIdPage({super.key});
@@ -127,96 +126,92 @@ class _NameIdPageState extends ConsumerState<NameIdPage> {
     context.go('/player');
   }
 
-  InputDecoration _dec(String label, String? error) => InputDecoration(
-    labelText: label,
-    errorText: error,
-    errorMaxLines: 3,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-  );
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Your details',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 24),
-                  TextField(
-                    key: const Key('nameField'),
-                    controller: _name,
-                    textInputAction: TextInputAction.next,
-                    textCapitalization: TextCapitalization.words,
-                    inputFormatters: [LengthLimitingTextInputFormatter(80)],
-                    decoration: _dec('Full name', _nameError),
-                    onChanged: (_) => setState(() => _nameError = null),
-                    onSubmitted: (_) => _idFocus.requestFocus(),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    key: const Key('idField'),
-                    controller: _id,
-                    focusNode: _idFocus,
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    textInputAction: TextInputAction.done,
-                    inputFormatters: [LengthLimitingTextInputFormatter(128)],
-                    decoration: _dec('Entrance ID', _idError),
-                    onChanged: (_) => setState(() => _idError = null),
-                    onSubmitted: (_) => _submit(),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_generalError != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Text(
-                        _generalError!,
-                        key: const Key('joinError'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: _red),
-                      ),
-                    ),
-                  SizedBox(
-                    height: 52,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(backgroundColor: _blue),
-                      onPressed: _busy
-                          ? null
-                          : (_mustRestart ? _restart : _submit),
-                      child: _busy
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : Text(
-                              _mustRestart ? 'Enter code again' : 'Join',
-                              style: const TextStyle(fontSize: 18),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(onPressed: _restart, child: const Text('Back')),
-                ],
-              ),
+    final c = context.hc;
+    final join = ref.watch(joinSessionProvider);
+    return PlayerPage(
+      top: PlayerTopBar(
+        onBack: _restart,
+        trailing: const StepDots(current: 2, total: 2),
+      ),
+      content: [
+        PageTitle(
+          'What should we call you?',
+          subtitle: join == null
+              ? null
+              : 'Booth slot ${join.slotNumber} of ${join.capacity}',
+        ),
+        LabelledField(
+          label: 'Full name',
+          field: TextField(
+            key: const Key('nameField'),
+            controller: _name,
+            textInputAction: TextInputAction.next,
+            textCapitalization: TextCapitalization.words,
+            inputFormatters: [LengthLimitingTextInputFormatter(80)],
+            decoration: InputDecoration(
+              hintText: 'Aman Sharma',
+              errorText: _nameError,
             ),
+            onChanged: (_) => setState(() => _nameError = null),
+            onSubmitted: (_) => _idFocus.requestFocus(),
           ),
         ),
-      ),
+        LabelledField(
+          label: 'Entrance ID',
+          field: TextField(
+            key: const Key('idField'),
+            controller: _id,
+            focusNode: _idFocus,
+            autocorrect: false,
+            enableSuggestions: false,
+            textInputAction: TextInputAction.done,
+            inputFormatters: [LengthLimitingTextInputFormatter(128)],
+            style: context.mono(TextStyle(fontSize: 16, color: c.text)),
+            decoration: InputDecoration(
+              hintText: 'From your entrance badge',
+              hintStyle: TextStyle(fontFamily: HeistFonts.sans, color: c.textMuted),
+              errorText: _idError,
+            ),
+            onChanged: (_) => setState(() => _idError = null),
+            onSubmitted: (_) => _submit(),
+          ),
+        ),
+        if (_generalError != null)
+          InfoCard(
+            tone: Tone.danger,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 8,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Icon(Icons.error_outline),
+                ),
+                Expanded(
+                  child: Text(_generalError!, key: const Key('joinError')),
+                ),
+              ],
+            ),
+          )
+        else
+          const InfoCard(
+            tone: Tone.accent,
+            child: IconLine(
+              Icons.visibility_off_outlined,
+              'Only your first name shows on the big screen. Your details '
+              'are used just for today.',
+            ),
+          ),
+      ],
+      bottom: [
+        PrimaryButton(
+          label: _mustRestart ? 'Enter code again' : 'Enter lobby',
+          busy: _busy,
+          onPressed: _mustRestart ? _restart : _submit,
+        ),
+      ],
     );
   }
 }

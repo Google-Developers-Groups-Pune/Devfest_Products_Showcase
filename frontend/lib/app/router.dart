@@ -44,15 +44,15 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       // The bare domain opens the player route (D24).
       GoRoute(path: '/', redirect: (_, _) => AppRoutes.player),
-      GoRoute(path: AppRoutes.player, builder: (_, _) => const BoothCodePage()),
-      GoRoute(path: AppRoutes.playerJoin, builder: (_, _) => const NameIdPage()),
-      GoRoute(path: AppRoutes.playerRejoin, builder: (_, _) => const RejoinPage()),
-      GoRoute(path: AppRoutes.playerKicked, builder: (_, _) => const KickedPage()),
-      GoRoute(path: AppRoutes.playerLobby, builder: (_, _) => const LobbyPage()),
-      GoRoute(path: AppRoutes.playerBattle, builder: (_, _) => const BattlePage()),
-      GoRoute(path: AppRoutes.playerTimeUp, builder: (_, _) => const TimeUpPage()),
-      GoRoute(path: AppRoutes.playerResult, builder: (_, _) => const ResultPage()),
-      GoRoute(path: AppRoutes.playerCancelled, builder: (_, _) => const CancelledPage()),
+      GoRoute(path: AppRoutes.player, builder: (_, _) => const HeistThemeScope(child: BoothCodePage())),
+      GoRoute(path: AppRoutes.playerJoin, builder: (_, _) => const HeistThemeScope(child: NameIdPage())),
+      GoRoute(path: AppRoutes.playerRejoin, builder: (_, _) => const HeistThemeScope(child: RejoinPage())),
+      GoRoute(path: AppRoutes.playerKicked, builder: (_, _) => const HeistThemeScope(child: KickedPage())),
+      GoRoute(path: AppRoutes.playerLobby, builder: (_, _) => const HeistThemeScope(child: LobbyPage())),
+      GoRoute(path: AppRoutes.playerBattle, builder: (_, _) => const HeistThemeScope(child: BattlePage())),
+      GoRoute(path: AppRoutes.playerTimeUp, builder: (_, _) => const HeistThemeScope(child: TimeUpPage())),
+      GoRoute(path: AppRoutes.playerResult, builder: (_, _) => const HeistThemeScope(child: ResultPage())),
+      GoRoute(path: AppRoutes.playerCancelled, builder: (_, _) => const HeistThemeScope(child: CancelledPage())),
       GoRoute(
         path: AppRoutes.controller,
         builder: (_, _) => DeferredPage(

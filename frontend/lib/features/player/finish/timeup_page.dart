@@ -4,11 +4,10 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/theme/score_colors.dart';
+import '../../../core/widgets/widgets.dart';
 import '../battle/game_state.dart';
+import '../widgets/player_ui.dart';
 import 'result_page.dart';
-
-const _blue = Color(0xFF4285F4);
 
 class TimeUpPage extends ConsumerStatefulWidget {
   const TimeUpPage({super.key});
@@ -42,144 +41,128 @@ class _TimeUpPageState extends ConsumerState<TimeUpPage> {
       if (d != null && d['status'] == 'CONFIRMED') context.go('/player/result');
     });
 
+    final c = context.hc;
     final game = ref.watch(gameProvider);
-    final best = game.bestScore ?? 0;
+    final best = game.bestScore;
     final scored = game.prompts
         .where((p) => p.stage == PromptStage.scored)
         .length;
+    final (bg, fg) = Tone.danger.colors(c);
 
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 76,
-                    height: 76,
-                    decoration: BoxDecoration(
-                      color: _blue.withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.hourglass_bottom_rounded,
-                      size: 38,
-                      color: _blue,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    "Time's up!",
-                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 10),
-                  const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      SizedBox(width: 10),
-                      Text(
-                        'Calculating results…',
-                        style: TextStyle(color: Colors.black54),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 28),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _Stat(
-                          'Your best score',
-                          '$best',
-                          scoreColor(best),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _Stat('Prompts scored', '$scored', _blue),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF4F7FE),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'How the winner is decided',
-                          style: TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'The highest best score wins. If two players tie, '
-                          'the player who reached that score first wins.',
-                          style: TextStyle(height: 1.4),
-                        ),
-                      ],
+    return PlayerPage(
+      top: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 6, 16, 6),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              spacing: 6,
+              children: [
+                Icon(Icons.timer_off_outlined, size: 20, color: fg),
+                Text(
+                  '00:00',
+                  style: context.mono(
+                    TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w500,
+                      color: fg,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        ),
+          const Spacer(),
+          StatusChip(
+            best == null ? 'No score yet' : 'Best $best',
+            tone: scoreTone(best),
+          ),
+        ],
       ),
+      content: [
+        const SizedBox(height: 36),
+        const Center(
+          child: SizedBox.square(
+            dimension: 36,
+            child: CircularProgressIndicator(strokeWidth: 3),
+          ),
+        ),
+        const Center(child: StripeDots(size: 10)),
+        Text(
+          "Time's up!",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w500,
+            color: c.text,
+          ),
+        ),
+        Text(
+          'Calculating results…',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: c.textSecondary),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          spacing: 12,
+          children: [
+            Expanded(
+              child: _Stat(
+                'Your best score',
+                best?.toString() ?? '0',
+                scoreTone(best ?? 0),
+              ),
+            ),
+            Expanded(
+              child: _Stat('Prompts scored', '$scored', Tone.neutral),
+            ),
+          ],
+        ),
+        const InfoCard(
+          tone: Tone.accent,
+          child: IconLine(
+            Icons.emoji_events_outlined,
+            'The highest best score wins. If two players tie, the player '
+            'who reached that score first wins.',
+          ),
+        ),
+      ],
     );
   }
 }
 
 class _Stat extends StatelessWidget {
-  const _Stat(this.label, this.value, this.accent);
+  const _Stat(this.label, this.value, this.tone);
   final String label;
   final String value;
-  final Color accent;
+  final Tone tone;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Colors.black12),
-    ),
-    child: Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontFamily: 'AppMono',
-            fontSize: 34,
-            fontWeight: FontWeight.w700,
+  Widget build(BuildContext context) {
+    final c = context.hc;
+    return InfoCard(
+      tone: tone,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 2,
+        children: [
+          Text(label, style: TextStyle(fontSize: 12, color: c.textSecondary)),
+          Text(
+            value,
+            style: context.mono(
+              TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w500,
+                color: c.text,
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          width: 36,
-          height: 4,
-          decoration: BoxDecoration(
-            color: accent,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: Colors.black54),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }

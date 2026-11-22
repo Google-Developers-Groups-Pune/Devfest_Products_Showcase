@@ -4,13 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/api/player_api.dart';
 import '../../../core/api/token_store.dart';
-import '../../../core/widgets/shape_marker.dart';
+import '../../../core/widgets/widgets.dart';
 import '../battle/game_state.dart';
-
-const _blue = Color(0xFF4285F4);
-const _red = Color(0xFFEA4335);
-const _yellow = Color(0xFFFBBC05);
-const _green = Color(0xFF34A853);
+import '../widgets/player_ui.dart';
 
 /// GET /api/player/result. PENDING until the Controller confirms.
 final resultProvider = FutureProvider.autoDispose<Json>((ref) {
@@ -36,34 +32,22 @@ class ResultPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final res = ref.watch(resultProvider);
     final mySlot = ref.watch(gameProvider.select((g) => g.mySlot));
-    return Scaffold(
-      body: SafeArea(
-        child: res.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Cannot load the result.'),
-                TextButton(
-                  onPressed: () => ref.invalidate(resultProvider),
-                  child: const Text('Try again'),
-                ),
-              ],
-            ),
-          ),
-          data: (d) {
-            if (d['status'] != 'CONFIRMED') {
-              // Not confirmed yet: back to the time up screen.
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (context.mounted) context.go('/player/timeup');
-              });
-              return const Center(child: CircularProgressIndicator());
-            }
-            return _ResultView(d, mySlot: mySlot);
-          },
-        ),
+    return res.when(
+      loading: () => const PlayerLoading(),
+      error: (e, _) => PlayerLoading(
+        message: 'Cannot load the result.',
+        onRetry: () => ref.invalidate(resultProvider),
       ),
+      data: (d) {
+        if (d['status'] != 'CONFIRMED') {
+          // Not confirmed yet: back to the time up screen.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) context.go('/player/timeup');
+          });
+          return const PlayerLoading();
+        }
+        return _ResultView(d, mySlot: mySlot);
+      },
     );
   }
 }
@@ -75,6 +59,7 @@ class _ResultView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final c = context.hc;
     final ranking = [
       for (final r in (d['ranking'] as List))
         Map<String, dynamic>.from(r as Map),
@@ -91,7 +76,7 @@ class _ResultView extends StatelessWidget {
 
     final String headline;
     final String sub;
-    final Color color;
+    final Tone tone;
     final IconData icon;
     if (myBest == null) {
       // No score at all: shown as zero.
@@ -99,150 +84,94 @@ class _ResultView extends StatelessWidget {
       sub = myRank == null
           ? 'Better luck next time'
           : 'You came ${ordinal(myRank)}';
-      color = _red;
+      tone = Tone.danger;
       icon = Icons.sentiment_neutral_rounded;
     } else if (myRank == 1) {
       headline = 'You won!';
       sub = 'Best score: $myBest';
-      color = _green;
+      tone = Tone.success;
       icon = Icons.emoji_events_rounded;
     } else {
       headline = myRank == null
           ? 'Final result'
           : 'You came ${ordinal(myRank)}';
       sub = 'Best score: $myBest';
-      color = _blue;
+      tone = Tone.accent;
       icon = Icons.flag_rounded;
     }
+    final (iconBg, iconFg) = tone.colors(c);
 
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 480),
-        child: ListView(
-          padding: const EdgeInsets.all(20),
+    String label(Map<String, dynamic> r) =>
+        r['slotNumber'] == mySlot ? '${r['label']} (you)' : '${r['label']}';
+
+    final top = ranking.where((r) => ((r['rank'] as num?) ?? 99) <= 3);
+    final rest = ranking.skip(3).toList();
+
+    return PlayerPage(
+      content: [
+        const SizedBox(height: 4),
+        Center(
+          child: Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(color: iconBg, shape: BoxShape.circle),
+            child: Icon(icon, size: 36, color: iconFg),
+          ),
+        ),
+        Column(
+          spacing: 4,
           children: [
-            Center(
-              child: Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.14),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, size: 40, color: color),
-              ),
+            Text(
+              'Results confirmed',
+              style: TextStyle(fontSize: 12, color: c.textSecondary),
             ),
-            const SizedBox(height: 16),
             Text(
               headline,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              sub,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.black54, fontSize: 16),
-            ),
-            const SizedBox(height: 24),
-            _Podium(ranking.take(3).toList(), mySlot),
-            if (ranking.length > 3) ...[
-              const SizedBox(height: 16),
-              for (final r in ranking.skip(3))
-                _RankRow(r, isMe: r['slotNumber'] == mySlot),
-            ],
-            if (tie != null && tie.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: _yellow.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(tie),
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w500,
+                color: c.text,
               ),
-            ],
-            if (story != null) ...[
-              const SizedBox(height: 20),
-              _StoryCard(story),
-            ],
+            ),
+            Text(sub, style: TextStyle(color: c.textSecondary, fontSize: 15)),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _Podium extends StatelessWidget {
-  const _Podium(this.top, this.mySlot);
-  final List<Map<String, dynamic>> top;
-  final int? mySlot;
-
-  @override
-  Widget build(BuildContext context) {
-    // Visual order: 2nd, 1st, 3rd.
-    final order = [1, 0, 2].where((i) => i < top.length).toList();
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        for (final i in order)
-          Expanded(child: _PodiumColumn(top[i], i, mySlot)),
-      ],
-    );
-  }
-}
-
-class _PodiumColumn extends StatelessWidget {
-  const _PodiumColumn(this.r, this.index, this.mySlot);
-  final Map<String, dynamic> r;
-  final int index; // 0 = first place
-  final int? mySlot;
-
-  @override
-  Widget build(BuildContext context) {
-    const heights = [120.0, 90.0, 70.0];
-    const colors = [_yellow, _blue, _red];
-    final isMe = r['slotNumber'] == mySlot;
-    final score = (r['bestScore'] as num?)?.toInt();
-    return Column(
-      children: [
-        ShapeMarker('${r['shape']}', size: 22),
-        const SizedBox(height: 6),
-        Text(
-          isMe ? '${r['label']} (you)' : '${r['label']}',
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: isMe ? FontWeight.w800 : FontWeight.w600,
+        if (top.isNotEmpty)
+          Podium(
+            height: 260,
+            entries: [
+              for (final r in top)
+                PodiumEntry(
+                  rank: (r['rank'] as num).toInt(),
+                  shape: slotShapeOf('${r['shape']}'),
+                  label: label(r),
+                  score: (r['bestScore'] as num?)?.toInt() ?? 0,
+                ),
+            ],
           ),
-        ),
-        Text(
-          '${score ?? 0}',
-          style: const TextStyle(
-            fontFamily: 'AppMono',
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Container(
-          height: heights[index],
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: colors[index],
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-          ),
-          child: Text(
-            '${index + 1}',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
-              color: index == 0 ? Colors.black87 : Colors.white,
+        if (rest.isNotEmpty)
+          InfoCard(
+            child: Column(
+              spacing: 10,
+              children: [
+                for (final r in rest)
+                  _RankRow(r, label: label(r), isMe: r['slotNumber'] == mySlot),
+              ],
             ),
           ),
+        if (tie != null && tie.isNotEmpty)
+          InfoCard(
+            tone: Tone.warning,
+            child: IconLine(Icons.balance_outlined, tie),
+          ),
+        if (story != null) _StoryCard(story),
+      ],
+      bottom: [
+        Text(
+          'The MC will tell the story behind the vault.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 12, color: c.textMuted),
         ),
       ],
     );
@@ -250,47 +179,43 @@ class _PodiumColumn extends StatelessWidget {
 }
 
 class _RankRow extends StatelessWidget {
-  const _RankRow(this.r, {required this.isMe});
+  const _RankRow(this.r, {required this.label, required this.isMe});
   final Map<String, dynamic> r;
+  final String label;
   final bool isMe;
 
   @override
   Widget build(BuildContext context) {
+    final c = context.hc;
     final score = (r['bestScore'] as num?)?.toInt();
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isMe ? _blue : Colors.black12,
-          width: isMe ? 2 : 1,
+    final (_, scoreFg) = scoreTone(score ?? 0).colors(c);
+    return Row(
+      spacing: 10,
+      children: [
+        SizedBox(
+          width: 20,
+          child: Text(
+            '${r['rank']}',
+            style: context.mono(TextStyle(color: c.textMuted)),
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 28,
-            child: Text(
-              '${r['rank']}',
-              style: const TextStyle(fontWeight: FontWeight.w700),
+        ShapeAvatar(slotShapeOf('${r['shape']}'), size: 20),
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: c.text,
+              fontWeight: isMe ? FontWeight.w500 : FontWeight.w400,
             ),
           ),
-          SizedBox(
-            width: 32,
-            child: Center(child: ShapeMarker('${r['shape']}', size: 16)),
+        ),
+        Text(
+          '${score ?? 0}',
+          style: context.mono(
+            TextStyle(color: scoreFg, fontWeight: FontWeight.w500),
           ),
-          const SizedBox(width: 10),
-          Expanded(child: Text(isMe ? '${r['label']} (you)' : '${r['label']}')),
-          Text(
-            '${score ?? 0}',
-            style: const TextStyle(
-              fontFamily: 'AppMono',
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -299,69 +224,47 @@ class _StoryCard extends StatelessWidget {
   const _StoryCard(this.story);
   final Map<String, dynamic> story;
 
-  Widget _placeholder() => Container(
-    color: const Color(0xFFEAF1FE),
-    alignment: Alignment.center,
-    child: const Icon(Icons.diamond_outlined, size: 56, color: _blue),
-  );
-
   @override
   Widget build(BuildContext context) {
-    final url = '${story['imageUrl'] ?? ''}';
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: const BorderSide(color: Colors.black12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: url.isEmpty
-                ? _placeholder()
-                : Image.network(
-                    url,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
-                    loadingBuilder: (_, child, p) =>
-                        p == null ? child : _placeholder(),
-                    errorBuilder: (_, _, _) => _placeholder(),
-                  ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'THE STORY',
-                  style: TextStyle(
-                    fontSize: 11,
-                    letterSpacing: 1,
-                    color: Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${story['title']}',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${story['backstory']}',
-                  style: const TextStyle(height: 1.4),
-                ),
-              ],
+    final c = context.hc;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: ColoredBox(
+        color: c.warningBg,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: TreasureImage('${story['imageUrl'] ?? ''}'),
             ),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 4,
+                children: [
+                  Text(
+                    'The story of ${story['title']}',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: c.text,
+                    ),
+                  ),
+                  Text(
+                    '${story['backstory']}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: c.warningText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
