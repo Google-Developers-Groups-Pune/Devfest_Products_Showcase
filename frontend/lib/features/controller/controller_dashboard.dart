@@ -10,6 +10,7 @@ import 'controller_auth.dart';
 import 'controller_state.dart';
 import 'panels/live_panel.dart';
 import 'panels/players_panel.dart';
+import 'panels/result_panels.dart';
 import 'panels/setup_panels.dart';
 import 'panels/treasure_panels.dart';
 import 'widgets/common.dart';
@@ -96,6 +97,8 @@ class _MainPanel extends StatelessWidget {
       'TREASURE_REVIEW' => TreasurePanel(state: state),
       'READY' => ReadyPanel(state: state),
       'PLAYING' => LivePanel(state: state),
+      'RESULT_PENDING' => ResultPanel(state: state),
+      'RESULTS' => ConfirmedPanel(state: state),
       _ => SetupPanel(state: state),
     };
   }
