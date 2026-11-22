@@ -157,6 +157,7 @@ String controllerErrorText(Object e) {
     'INVALID_PHASE' => 'The session has moved on. The screen has been refreshed.',
     'SESSION_ALREADY_ACTIVE' => 'A session is already open. The screen has been refreshed.',
     'EVENT_CLOSED' => 'The event day is closed.',
+    'EVENT_CLOSING_FAILED' => 'Closing the event day failed. Retry the deletion before doing anything else.',
     'PLAYERS_NOT_JOINED' => 'Wait until every player has joined.',
     'GENERATION_IN_PROGRESS' => 'A treasure is already being generated.',
     'CANDIDATE_NOT_READY' => 'The treasure is not ready yet. Wait for the image.',

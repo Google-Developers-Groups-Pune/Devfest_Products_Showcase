@@ -656,6 +656,12 @@ abstract final class MockController {
     final ev = _event;
     final s = _session;
 
+    // D44: while closing has failed, game actions are refused (APIs 4, 6-10,
+    // 13, 14, 28-30) until the close is retried successfully.
+    if (ev['status'] == 'CLOSING_FAILED' && _blockedWhileClosingFailed(method, seg)) {
+      throw MockError(409, 'EVENT_CLOSING_FAILED', 'Closing the event day failed. Retry the deletion first.');
+    }
+
     switch (key) {
       case 'POST auth/logout':
         db['token'] = null;
@@ -982,6 +988,20 @@ abstract final class MockController {
     }
 
     throw MockError(404, 'NOT_FOUND', 'Not found in mock: $method $path');
+  }
+
+  static bool _blockedWhileClosingFailed(String method, List<String> seg) {
+    if (method == 'GET') return false;
+    final rest = seg.skip(2).toList();
+    if (rest.isEmpty) return false;
+    final last = rest.last;
+    return switch (rest.first) {
+      'sessions' => true, // 4, 6, 7, 10, 28, 29
+      'treasure' => true, // 8, 9
+      'rounds' => last == 'confirm' || last == 'discard', // 13, 14
+      'players' => true, // 30
+      _ => false,
+    };
   }
 
   static bool _csvUpToDate() {

@@ -249,6 +249,7 @@ void main() {
     expect(failed['status'], 'CLOSING_FAILED');
     expect((failed['failure'] as Map)['stage'], 'STORAGE');
 
+    expect(() => call('POST', 'sessions', {'capacity': 5}), error('EVENT_CLOSING_FAILED'));
     call('POST', 'event/close', {'confirmation': 'CLOSE EVENT'});
     advance(3);
     expect((call('GET', 'event/status').$2 as Map)['status'], 'CLOSED');
