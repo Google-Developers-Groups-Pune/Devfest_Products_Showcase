@@ -34,7 +34,15 @@ export function createStateMachine<S extends string, E extends string>(
   name: string,
   table: TransitionTable<S, E>,
 ): StateMachine<S, E> {
-  const lookup = (from: S, event: E): S | undefined => table[from]?.[event];
+  // Object.hasOwn, not a plain property read: states read back from Firestore
+  // are just strings, and inputs like 'constructor' or '__proto__' must not
+  // match properties inherited from Object.prototype.
+  const lookup = (from: S, event: E): S | undefined => {
+    if (!Object.hasOwn(table, from)) return undefined;
+    const row = table[from];
+    if (row === undefined || !Object.hasOwn(row, event)) return undefined;
+    return row[event];
+  };
 
   return {
     name,

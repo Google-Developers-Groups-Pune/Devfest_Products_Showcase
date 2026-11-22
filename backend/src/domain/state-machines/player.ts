@@ -15,7 +15,14 @@ export const PLAYER_EVENTS = [
 ] as const;
 export type PlayerEvent = (typeof PLAYER_EVENTS)[number];
 
-/** Every legal player move. LOCKED_100 can never go back to PLAYING. */
+/**
+ * Every legal player move. LOCKED_100 can never go back to PLAYING.
+ *
+ * Discard, abandon and event close do not move players: they end the session,
+ * so a player can stay in PLAYING or RESULT_PENDING after their session has
+ * ended. Rejoin (BE-12) and the display (BE-13) must check the session phase
+ * before the player state.
+ */
 export const playerMachine = createStateMachine<PlayerState, PlayerEvent>('player', {
   LOBBY: { ROUND_STARTED: 'PLAYING' },
   PLAYING: { SCORED_100: 'LOCKED_100', ROUND_ENDED: 'RESULT_PENDING' },

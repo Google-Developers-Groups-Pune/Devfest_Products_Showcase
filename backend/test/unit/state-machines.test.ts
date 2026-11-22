@@ -41,8 +41,20 @@ function describeMachine<S extends string, E extends string>(
       expect(() => machine.transition(from, event)).toThrow(IllegalTransitionError);
     });
 
-    it('covers every state and event pair exactly once', () => {
-      expect(legal.length + illegal.length).toBe(states.length * events.length);
+    it('has no duplicate legal rows', () => {
+      const keys = legal.map(([from, event]) => `${from}|${event}`);
+      expect(new Set(keys).size).toBe(keys.length);
+    });
+
+    it('rejects unknown strings, including Object.prototype names', () => {
+      const odd = ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'name', ''];
+      for (const from of [...odd, ...states]) {
+        for (const event of [...odd, ...events]) {
+          if (isLegal(from as S, event as E)) continue;
+          expect(machine.can(from as S, event as E)).toBe(false);
+          expect(() => machine.transition(from as S, event as E)).toThrow(IllegalTransitionError);
+        }
+      }
     });
   });
 }
@@ -59,6 +71,12 @@ describeMachine(sessionMachine, SESSION_PHASES, SESSION_EVENTS, [
   ['JOINING', 'ABANDON_SESSION', 'CLOSED'],
   ['TREASURE_REVIEW', 'ABANDON_SESSION', 'CLOSED'],
   ['READY', 'ABANDON_SESSION', 'CLOSED'],
+  ['JOINING', 'CLOSE_EVENT', 'CLOSED'],
+  ['TREASURE_REVIEW', 'CLOSE_EVENT', 'CLOSED'],
+  ['READY', 'CLOSE_EVENT', 'CLOSED'],
+  ['PLAYING', 'CLOSE_EVENT', 'CLOSED'],
+  ['RESULT_PENDING', 'CLOSE_EVENT', 'CLOSED'],
+  ['RESULTS', 'CLOSE_EVENT', 'CLOSED'],
 ]);
 
 describeMachine(playerMachine, PLAYER_STATES, PLAYER_EVENTS, [
@@ -89,6 +107,13 @@ describe('key rules from the story', () => {
         expect(playerMachine.transition('LOCKED_100', event)).not.toBe('PLAYING');
       }
     }
+  });
+
+  it('lets closing the event end every session that is not already final (D44)', () => {
+    for (const phase of ['JOINING', 'TREASURE_REVIEW', 'READY', 'PLAYING', 'RESULT_PENDING', 'RESULTS'] as const) {
+      expect(sessionMachine.transition(phase, 'CLOSE_EVENT')).toBe('CLOSED');
+    }
+    expect(sessionMachine.can('SETUP', 'CLOSE_EVENT')).toBe(false);
   });
 
   it('never moves RESULTS on a timer event', () => {

@@ -25,19 +25,21 @@ export const SESSION_EVENTS = [
   'DISCARD_RESULT', // Controller discards the result (BE-25, decision D34)
   'ABANDON_SESSION', // Controller abandons before play (BE-36, decision D31)
   'CLOSE_SESSION', // Controller ends the session after results (BE-36, decision D2)
+  'CLOSE_EVENT', // Controller closes the event day; any unconfirmed result is lost (BE-29, decision D44)
 ] as const;
 export type SessionEvent = (typeof SESSION_EVENTS)[number];
 
 /**
  * Every legal session move. DISCARDED and CLOSED are final.
- * RESULTS only leaves by CLOSE_SESSION, a Controller action, never a timer.
+ * RESULTS only leaves by a Controller action (CLOSE_SESSION or CLOSE_EVENT), never a timer.
+ * CLOSE_EVENT ends the session as CLOSED from every phase that is not already final.
  */
 export const sessionMachine = createStateMachine<SessionPhase, SessionEvent>('session', {
   SETUP: { OPEN_SESSION: 'JOINING' },
-  JOINING: { REQUEST_TREASURE: 'TREASURE_REVIEW', ABANDON_SESSION: 'CLOSED' },
-  TREASURE_REVIEW: { APPROVE_TREASURE: 'READY', ABANDON_SESSION: 'CLOSED' },
-  READY: { START_ROUND: 'PLAYING', ABANDON_SESSION: 'CLOSED' },
-  PLAYING: { ROUND_TIMER_ENDED: 'RESULT_PENDING' },
-  RESULT_PENDING: { CONFIRM_RESULT: 'RESULTS', DISCARD_RESULT: 'DISCARDED' },
-  RESULTS: { CLOSE_SESSION: 'CLOSED' },
+  JOINING: { REQUEST_TREASURE: 'TREASURE_REVIEW', ABANDON_SESSION: 'CLOSED', CLOSE_EVENT: 'CLOSED' },
+  TREASURE_REVIEW: { APPROVE_TREASURE: 'READY', ABANDON_SESSION: 'CLOSED', CLOSE_EVENT: 'CLOSED' },
+  READY: { START_ROUND: 'PLAYING', ABANDON_SESSION: 'CLOSED', CLOSE_EVENT: 'CLOSED' },
+  PLAYING: { ROUND_TIMER_ENDED: 'RESULT_PENDING', CLOSE_EVENT: 'CLOSED' },
+  RESULT_PENDING: { CONFIRM_RESULT: 'RESULTS', DISCARD_RESULT: 'DISCARDED', CLOSE_EVENT: 'CLOSED' },
+  RESULTS: { CLOSE_SESSION: 'CLOSED', CLOSE_EVENT: 'CLOSED' },
 });
