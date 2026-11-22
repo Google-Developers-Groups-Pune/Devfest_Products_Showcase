@@ -9,15 +9,21 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "lint": "redocly lint openapi/openapi.yaml",
-    "mock": "prism mock --port 4010 openapi/openapi.yaml"
+    "lint": "redocly lint openapi/openapi.yaml openapi/asyncapi.yaml",
+    "typecheck": "tsc -p tsconfig.json",
+    "mock": "prism mock --port 4010 openapi/openapi.yaml",
+    "mock:game": "tsx mock/replay/replay.ts",
+    "replay:validate": "tsx mock/replay/replay.ts --validate-only"
   },
   "devDependencies": {
     "@redocly/cli": "^2.82.0",
     "@stoplight/prism-cli": "^5.16.0",
     "@types/node": "^22.20.5",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "socket.io": "^4.8.4",
     "tsx": "^4.23.15",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "yaml": "^2.9.1"
   }
 }

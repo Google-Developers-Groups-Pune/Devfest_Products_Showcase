@@ -1,65 +1,4290 @@
+# Prompt Heist REST API (OpenAPI 3.1)
+# Contract for BE-02. Keep in sync with the story files.
+
 openapi: 3.1.0
 info:
   title: Prompt Heist API
-  version: 0.1.0
-  description: |
-    REST contract for the Prompt Heist backend. BE-02 extends this file to all 30
-    endpoints listed in docs/STORIES.md section 9, including error codes.
+  version: 0.2.0
+  summary: REST contract for the Prompt Heist game (BE-02).
   license:
     name: MIT
     identifier: MIT
+  description: >-
+    Sources: the story files in `docs/team/` (Shravani.md) and the teammates' story files (Asmita.md, Shreya.md),
+
+    cross-checked with the frontend story files (Mrudula.md, Harsimar.md). Each endpoint names its owner story in
+    `x-owner`.
+
+
+    Conventions (shared contract):
+
+    - JSON, camelCase. Timestamps are ISO 8601 UTC with milliseconds. Durations are whole seconds.
+
+    - `Authorization: Bearer <token>`. Every response has `X-Correlation-Id`.
+
+    - The client never sends a player ID, score, timestamp or winner. The server works these out.
+
+    - All writes go through REST. Sockets only send from server to client.
+
+    - After any socket reconnect, call the hydrate endpoint (APIs 5, 23, 27).
+
+    - While event closing has failed, every other Controller write returns `409 EVENT_CLOSING_FAILED` (BE-29).
+
+    - Any endpoint can return `500 INTERNAL_ERROR` for an unexpected server failure.
+
+
+    Change rule: anyone changing this contract after Day 2 updates this file in the same PR and posts in the team
+    channel.
 servers:
   - url: http://localhost:8080
     description: Local backend
   - url: http://localhost:4010
-    description: Prism mock server
+    description: Local mock (`npm run mock` for Prism only, `npm run mock:game` for Prism plus the socket replay)
 tags:
-  - name: health
-    description: Service liveness.
+  - name: Health
+    description: Service liveness, used by Cloud Run.
+  - name: Controller
+    description: Booth operator routes. Need `controllerToken`.
+  - name: Player
+    description: Phone routes. The player always comes from the token.
+  - name: Display
+    description: Public audience big-screen route. No token.
+  - name: Hydrate
+    description: Called on load and after any socket reconnect.
 paths:
   /health:
     get:
-      tags: [health]
       operationId: getHealth
       summary: Liveness probe
+      description: Returns 200 while the service is up (BE-01). Not `/healthz`, which Cloud Run reserves.
+      tags:
+        - Health
+      x-owner:
+        story: BE-01
+        engineer: Shreya
       security: []
       responses:
-        '200':
+        "200":
           description: The service is up.
           headers:
             X-Correlation-Id:
-              $ref: '#/components/headers/CorrelationId'
+              $ref: "#/components/headers/X-Correlation-Id"
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Health'
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - ok
+              example:
+                status: ok
+  /api/controller/auth/login:
+    post:
+      operationId: controllerLogin
+      summary: API 1 · Controller login
+      description: >-
+        One Controller account, username and password stored as an argon2 hash (D13). No second factor.
+
+        A new login ends the previous one: the old token is revoked and `controller:kicked` goes to the old socket
+        (D29).
+
+        Limit of 5 tries per minute, never a long lockout.
+      tags:
+        - Controller
+      x-api: 1
+      x-owner:
+        story: BE-05
+        engineer: Asmita
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  examples:
+                    - controller
+                password:
+                  type: string
+                  examples:
+                    - ...
+      responses:
+        "200":
+          description: Logged in.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+              example:
+                token: <controllerToken>
+                expiresAt: "2026-12-05T20:00:00.000Z"
+                controller:
+                  id: ctl_1
+                  username: controller
+        "401":
+          description: "`INVALID_CREDENTIALS`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INVALID_CREDENTIALS:
+                  $ref: "#/components/examples/INVALID_CREDENTIALS"
+        "429":
+          description: "`TOO_MANY_ATTEMPTS`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                TOO_MANY_ATTEMPTS:
+                  $ref: "#/components/examples/TOO_MANY_ATTEMPTS"
+  /api/controller/auth/logout:
+    post:
+      operationId: controllerLogout
+      summary: API 2 · Controller logout
+      tags:
+        - Controller
+      x-api: 2
+      x-owner:
+        story: BE-05
+        engineer: Asmita
+      security:
+        - controllerToken: []
+      responses:
+        "204":
+          description: No body. The token is added to a server-side revoked list until it expires.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+  /api/controller/auth/me:
+    get:
+      operationId: controllerMe
+      summary: API 3 · Current Controller
+      tags:
+        - Controller
+      x-api: 3
+      x-owner:
+        story: BE-05
+        engineer: Asmita
+      security:
+        - controllerToken: []
+      responses:
+        "200":
+          description: The signed-in Controller.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - controller
+                properties:
+                  controller:
+                    $ref: "#/components/schemas/ControllerAccount"
+              example:
+                controller:
+                  id: ctl_1
+                  username: controller
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+  /api/controller/sessions:
+    post:
+      operationId: createSession
+      summary: API 4 · Open a session
+      description: >-
+        Opens a new session and generates one unique 2-digit code per slot. Phase becomes `JOINING`.
+
+        Creates the `EventDay` record on the first session of the day. Refuses a second session unless the current one
+        is `CLOSED`.
+      tags:
+        - Controller
+      x-api: 4
+      x-owner:
+        story: BE-08
+        engineer: Asmita
+      security:
+        - controllerToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - capacity
+              properties:
+                capacity:
+                  type: integer
+                  enum:
+                    - 4
+                    - 5
+                  examples:
+                    - 5
+                roundDurationSeconds:
+                  type: integer
+                  examples:
+                    - 90
+                  minimum: 1
+                  default: 90
+                  description: Optional. Positive whole seconds, no maximum.
+      responses:
+        "201":
+          description: Session opened.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - session
+                  - slots
+                properties:
+                  session:
+                    $ref: "#/components/schemas/NewSession"
+                  slots:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ControllerSlot"
+              example:
+                session:
+                  id: ses_01
+                  phase: JOINING
+                  capacity: 5
+                  roundDurationSeconds: 90
+                  joinedCount: 0
+                  createdAt: "2026-12-05T10:00:00.000Z"
+                slots:
+                  - slotNumber: 1
+                    code: "29"
+                    shape: BLUE_CIRCLE
+                    slotState: UNJOINED
+                    player: null
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "409":
+          description: "`SESSION_ALREADY_ACTIVE` · `EVENT_CLOSED` · `EVENT_CLOSING_FAILED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                SESSION_ALREADY_ACTIVE:
+                  $ref: "#/components/examples/SESSION_ALREADY_ACTIVE"
+                EVENT_CLOSED:
+                  $ref: "#/components/examples/EVENT_CLOSED"
+                EVENT_CLOSING_FAILED:
+                  $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+        "422":
+          description: "`VALIDATION_FAILED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                VALIDATION_FAILED:
+                  $ref: "#/components/examples/VALIDATION_FAILED"
+  /api/controller/sessions/active:
+    get:
+      operationId: getActiveSession
+      summary: API 5 · Dashboard state (Controller hydrate)
+      description: >-
+        Full dashboard hydrate, called on load and on every socket reconnect. `session` is null in the Setup screen,
+        with winners still listed.
+
+        This is the only payload family that may contain `fullName`, `entranceId` and `rubric`.
+      tags:
+        - Controller
+        - Hydrate
+      x-api: 5
+      x-owner:
+        story: BE-08
+        engineer: Asmita
+      security:
+        - controllerToken: []
+      responses:
+        "200":
+          description: Dashboard state.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ControllerDashboard"
+              example:
+                serverNow: "2026-12-05T10:00:00.000Z"
+                eventDay:
+                  id: evt_01
+                  status: OPEN
+                  confirmedCount: 1
+                  csvExportedAt: null
+                  csvUpToDate: false
+                  lastSettings:
+                    capacity: 5
+                    roundDurationSeconds: 90
+                  winners:
+                    - roundNumber: 1
+                      fullName: Dev Khan
+                      score: 100
+                session:
+                  id: ses_01
+                  phase: READY
+                  capacity: 5
+                  roundDurationSeconds: 90
+                  joinedCount: 5
+                slots:
+                  - slotNumber: 1
+                    code: "29"
+                    shape: BLUE_CIRCLE
+                    slotState: LOBBY
+                    player:
+                      id: ply_1
+                      label: Neha
+                      fullName: Neha Rao
+                      entranceId: DF-2026-2802
+                      connection: CONNECTED
+                      bestScore: null
+                      nameReview: APPROVED
+                treasure:
+                  candidateId: cnd_1
+                  status: APPROVED
+                  title: The Saffron Vault
+                  backstory: A vault of saffron guarded by a sleepy parrot. (A simulated treasure.)
+                  lockObjective: Convince the parrot to open the vault.
+                  imageUrl: https://storage.googleapis.com/bucket/cnd_1.jpg?signature=abc
+                  filterPassed: true
+                  rubric:
+                    version: v1
+                    scoringCriteria:
+                      - Requests a poem
+                round:
+                  roundId: rnd_1
+                  roundNumber: 1
+                  durationSeconds: 90
+                  startedAt: null
+                  roundEndAt: null
+                audit:
+                  - at: "2026-12-05T10:00:00.000Z"
+                    summary: Session opened - 5 players - 90s round
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+  /api/controller/sessions/{id}/duration:
+    patch:
+      operationId: changeRoundDuration
+      summary: API 6 · Change round duration
+      description: |-
+        Allowed in `JOINING`, `TREASURE_REVIEW`, `READY`. Locked at start. Positive whole seconds, no maximum.
+        The Controller UI steps in 20 seconds (D14); the server only requires a positive whole number.
+      tags:
+        - Controller
+      x-api: 6
+      x-owner:
+        story: BE-09
+        engineer: Asmita
+      security:
+        - controllerToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Session ID.
+          schema:
+            type: string
+          example: ses_01
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - roundDurationSeconds
+              properties:
+                roundDurationSeconds:
+                  type: integer
+                  examples:
+                    - 120
+                  minimum: 1
+      responses:
+        "200":
+          description: Duration changed.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - session
+                properties:
+                  session:
+                    type: object
+                    required:
+                      - id
+                      - roundDurationSeconds
+                    properties:
+                      id:
+                        type: string
+                        examples:
+                          - ses_01
+                      roundDurationSeconds:
+                        type: integer
+                        examples:
+                          - 120
+              example:
+                session:
+                  id: ses_01
+                  roundDurationSeconds: 120
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "409":
+          description: "`INVALID_PHASE` · `EVENT_CLOSING_FAILED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INVALID_PHASE:
+                  $ref: "#/components/examples/INVALID_PHASE"
+                EVENT_CLOSING_FAILED:
+                  $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+        "422":
+          description: "`VALIDATION_FAILED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                VALIDATION_FAILED:
+                  $ref: "#/components/examples/VALIDATION_FAILED"
+  /api/controller/sessions/{id}/treasure:
+    post:
+      operationId: generateTreasure
+      summary: API 7 · Generate a treasure
+      description: >-
+        Asynchronous: text and image generation can take 20 to 40 seconds. Needs all players joined.
+
+        Moves `JOINING` to `TREASURE_REVIEW`. No request body. The result arrives on `treasure:ready` or
+        `treasure:failed`.
+      tags:
+        - Controller
+      x-api: 7
+      x-owner:
+        story: BE-19
+        engineer: Shreya
+      security:
+        - controllerToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Session ID.
+          schema:
+            type: string
+          example: ses_01
+      responses:
+        "202":
+          description: Generation started.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - candidate
+                properties:
+                  candidate:
+                    $ref: "#/components/schemas/CandidateRef"
+              example:
+                candidate:
+                  candidateId: cnd_1
+                  status: GENERATING
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "409":
+          description: "`PLAYERS_NOT_JOINED` · `INVALID_PHASE` · `GENERATION_IN_PROGRESS` · `EVENT_CLOSING_FAILED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PLAYERS_NOT_JOINED:
+                  $ref: "#/components/examples/PLAYERS_NOT_JOINED"
+                INVALID_PHASE:
+                  $ref: "#/components/examples/INVALID_PHASE"
+                GENERATION_IN_PROGRESS:
+                  $ref: "#/components/examples/GENERATION_IN_PROGRESS"
+                EVENT_CLOSING_FAILED:
+                  $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+  /api/controller/treasure/{id}/approve:
+    post:
+      operationId: approveTreasure
+      summary: API 8 · Approve the treasure
+      description: |-
+        Pins the treasure, rubric version and image. Immutable from here. Phase becomes `READY`. No request body.
+        Refused without a stored image (D7).
+      tags:
+        - Controller
+      x-api: 8
+      x-owner:
+        story: BE-19
+        engineer: Shreya
+      security:
+        - controllerToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Treasure candidate ID.
+          schema:
+            type: string
+          example: cnd_1
+      responses:
+        "200":
+          description: Approved.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - session
+                  - treasure
+                properties:
+                  session:
+                    type: object
+                    required:
+                      - id
+                      - phase
+                    properties:
+                      id:
+                        type: string
+                        examples:
+                          - ses_01
+                      phase:
+                        $ref: "#/components/schemas/Phase"
+                        examples:
+                          - READY
+                  treasure:
+                    type: object
+                    required:
+                      - candidateId
+                      - status
+                    properties:
+                      candidateId:
+                        type: string
+                        examples:
+                          - cnd_1
+                      status:
+                        $ref: "#/components/schemas/CandidateStatus"
+                        examples:
+                          - APPROVED
+              example:
+                session:
+                  id: ses_01
+                  phase: READY
+                treasure:
+                  candidateId: cnd_1
+                  status: APPROVED
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "404":
+          description: "`NOT_FOUND`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                NOT_FOUND:
+                  $ref: "#/components/examples/NOT_FOUND"
+        "409":
+          description: "`CANDIDATE_NOT_READY` · `INVALID_PHASE` · `EVENT_CLOSING_FAILED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                CANDIDATE_NOT_READY:
+                  $ref: "#/components/examples/CANDIDATE_NOT_READY"
+                INVALID_PHASE:
+                  $ref: "#/components/examples/INVALID_PHASE"
+                EVENT_CLOSING_FAILED:
+                  $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+  /api/controller/treasure/{id}/reject:
+    post:
+      operationId: rejectTreasure
+      summary: API 9 · Reject and regenerate
+      description: "One action (D32): marks the candidate rejected and starts a new one. No request body."
+      tags:
+        - Controller
+      x-api: 9
+      x-owner:
+        story: BE-19
+        engineer: Shreya
+      security:
+        - controllerToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Treasure candidate ID.
+          schema:
+            type: string
+          example: cnd_1
+      responses:
+        "202":
+          description: Rejected; new candidate generating.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - rejectedCandidateId
+                  - candidate
+                properties:
+                  rejectedCandidateId:
+                    type: string
+                    examples:
+                      - cnd_1
+                  candidate:
+                    $ref: "#/components/schemas/CandidateRef"
+              example:
+                rejectedCandidateId: cnd_1
+                candidate:
+                  candidateId: cnd_2
+                  status: GENERATING
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "404":
+          description: "`NOT_FOUND`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                NOT_FOUND:
+                  $ref: "#/components/examples/NOT_FOUND"
+        "409":
+          description: "`INVALID_PHASE` · `EVENT_CLOSING_FAILED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INVALID_PHASE:
+                  $ref: "#/components/examples/INVALID_PHASE"
+                EVENT_CLOSING_FAILED:
+                  $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+  /api/controller/sessions/{id}/start:
+    post:
+      operationId: startRound
+      summary: API 10 · Start the round
+      description: |-
+        Sets `roundEndAt = now + duration`. Phase becomes `PLAYING`. No request body.
+        Checks: all players joined and connected, all names approved, treasure approved, all five agents up (D28).
+        Persists `roundStartedAt` and `roundEndAt` before emitting `round:started`. One round per session.
+      tags:
+        - Controller
+      x-api: 10
+      x-owner:
+        story: BE-20
+        engineer: Shravani
+      security:
+        - controllerToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Session ID.
+          schema:
+            type: string
+          example: ses_01
+      responses:
+        "200":
+          description: Round started.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - round
+                properties:
+                  round:
+                    $ref: "#/components/schemas/Round"
+              example:
+                round:
+                  roundId: rnd_1
+                  roundNumber: 1
+                  durationSeconds: 90
+                  startedAt: "2026-12-05T10:00:00.000Z"
+                  roundEndAt: "2026-12-05T10:01:30.000Z"
+                  serverNow: "2026-12-05T10:00:00.012Z"
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "409":
+          description: >-
+            `PLAYERS_NOT_READY` · `NAMES_NOT_REVIEWED` · `TREASURE_NOT_APPROVED` · `INVALID_PHASE` ·
+            `EVENT_CLOSING_FAILED`
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PLAYERS_NOT_READY:
+                  $ref: "#/components/examples/PLAYERS_NOT_READY"
+                NAMES_NOT_REVIEWED:
+                  $ref: "#/components/examples/NAMES_NOT_REVIEWED"
+                TREASURE_NOT_APPROVED:
+                  $ref: "#/components/examples/TREASURE_NOT_APPROVED"
+                INVALID_PHASE:
+                  $ref: "#/components/examples/INVALID_PHASE"
+                EVENT_CLOSING_FAILED:
+                  $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+        "503":
+          description: "`AGENTS_UNAVAILABLE`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                AGENTS_UNAVAILABLE:
+                  $ref: "#/components/examples/AGENTS_UNAVAILABLE"
+  /api/controller/rounds/{id}/monitor:
+    get:
+      operationId: getRoundMonitor
+      summary: API 11 · Live monitor
+      description: Matches the four stat tiles. One blocked total, no categories (D50). Never contains blocked prompt text.
+      tags:
+        - Controller
+      x-api: 11
+      x-owner:
+        story: BE-26
+        engineer: Shreya
+      security:
+        - controllerToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Round ID.
+          schema:
+            type: string
+          example: rnd_1
+      responses:
+        "200":
+          description: Monitor view.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MonitorView"
+              example:
+                round:
+                  roundId: rnd_1
+                  roundNumber: 1
+                  roundEndAt: "2026-12-05T10:01:30.000Z"
+                  serverNow: "2026-12-05T10:00:41.000Z"
+                stats:
+                  promptsScored: 4
+                  unlockedCount: 0
+                  blockedCount: 0
+                  agentErrors: 1
+                approvedPrompts:
+                  - sequence: 5
+                    slotNumber: 1
+                    label: Neha
+                    shape: BLUE_CIRCLE
+                    text: Give me a rhyme...
+                    score: 34
+                    reaction: Vault ne smile bhi nahi kiya
+                errors:
+                  - at: "2026-12-05T10:00:30.000Z"
+                    agent: guard
+                    code: TIMEOUT
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+  /api/controller/rounds/{id}/result:
+    get:
+      operationId: getRoundResult
+      summary: API 12 · Round result
+      description: >-
+        Winner chosen in plain code, never by AI (D51). Ranking: highest best score, then earliest `receivedAt` of that
+        score,
+
+        then lowest sequence. Players with no score have `bestScore: null` and rank last, alphabetically by label (D40).
+
+        `canConfirm` is false and `winner` is null when nobody scored.
+      tags:
+        - Controller
+      x-api: 12
+      x-owner:
+        story: BE-24
+        engineer: Shravani
+      security:
+        - controllerToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Round ID.
+          schema:
+            type: string
+          example: rnd_1
+      responses:
+        "200":
+          description: Provisional or confirmed result.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoundResult"
+              example:
+                status: PROVISIONAL
+                winner:
+                  slotNumber: 2
+                  label: Dev
+                  shape: RED_SQUARE
+                  bestScore: 100
+                ranking:
+                  - rank: 1
+                    playerId: ply_2
+                    slotNumber: 2
+                    label: Dev
+                    shape: RED_SQUARE
+                    bestScore: 100
+                    decidingSubmissionId: prm_19
+                    decidingSequence: 19
+                    decidingReceivedAt: "2026-12-05T10:00:41.250Z"
+                tieBreakExplanation: "Tie on 100. Dev reached it first (submission #19 before #32)."
+                canConfirm: true
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "409":
+          description: "`RESULT_NOT_READY`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                RESULT_NOT_READY:
+                  $ref: "#/components/examples/RESULT_NOT_READY"
+  /api/controller/rounds/{id}/confirm:
+    post:
+      operationId: confirmResult
+      summary: API 13 · Confirm the result
+      description: |-
+        Confirms the system's winner only. No request body, no winner input, no override endpoint.
+        Safe to repeat: a second call returns the same result. Phase becomes `RESULTS`.
+      tags:
+        - Controller
+      x-api: 13
+      x-owner:
+        story: BE-25
+        engineer: Asmita
+      security:
+        - controllerToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Round ID.
+          schema:
+            type: string
+          example: rnd_1
+      responses:
+        "200":
+          description: Confirmed.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - result
+                  - session
+                properties:
+                  result:
+                    type: object
+                    required:
+                      - status
+                      - roundNumber
+                      - confirmedAt
+                    properties:
+                      status:
+                        $ref: "#/components/schemas/ResultStatus"
+                        examples:
+                          - CONFIRMED
+                      roundNumber:
+                        type: integer
+                        examples:
+                          - 1
+                      confirmedAt:
+                        $ref: "#/components/schemas/Timestamp"
+                  session:
+                    type: object
+                    required:
+                      - phase
+                    properties:
+                      phase:
+                        $ref: "#/components/schemas/Phase"
+                        examples:
+                          - RESULTS
+              example:
+                result:
+                  status: CONFIRMED
+                  roundNumber: 1
+                  confirmedAt: "2026-12-05T10:03:00.000Z"
+                session:
+                  phase: RESULTS
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "409":
+          description: "`NO_WINNER` · `INVALID_PHASE` · `EVENT_CLOSING_FAILED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                NO_WINNER:
+                  $ref: "#/components/examples/NO_WINNER"
+                INVALID_PHASE:
+                  $ref: "#/components/examples/INVALID_PHASE"
+                EVENT_CLOSING_FAILED:
+                  $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+  /api/controller/rounds/{id}/discard:
+    post:
+      operationId: discardRound
+      summary: API 14 · Discard the round
+      description: |-
+        Ends the session with no winner. Phase becomes `DISCARDED`, which is final (D34).
+        Entrance IDs are released, so the same people can join a new session with new codes.
+      tags:
+        - Controller
+      x-api: 14
+      x-owner:
+        story: BE-25
+        engineer: Asmita
+      security:
+        - controllerToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Round ID.
+          schema:
+            type: string
+          example: rnd_1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  examples:
+                    - Wi-Fi dropped for two players
+                  description: Required, not blank. Never sent to phones or the display.
+      responses:
+        "200":
+          description: Discarded.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - session
+                properties:
+                  session:
+                    type: object
+                    required:
+                      - id
+                      - phase
+                    properties:
+                      id:
+                        type: string
+                        examples:
+                          - ses_01
+                      phase:
+                        $ref: "#/components/schemas/Phase"
+                        examples:
+                          - DISCARDED
+              example:
+                session:
+                  id: ses_01
+                  phase: DISCARDED
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "409":
+          description: "`INVALID_PHASE` · `EVENT_CLOSING_FAILED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INVALID_PHASE:
+                  $ref: "#/components/examples/INVALID_PHASE"
+                EVENT_CLOSING_FAILED:
+                  $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+        "422":
+          description: "`REASON_REQUIRED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                REASON_REQUIRED:
+                  $ref: "#/components/examples/REASON_REQUIRED"
+  /api/controller/winners/export:
+    get:
+      operationId: exportWinners
+      summary: API 15 · Winners CSV
+      description: >-
+        Built in memory. One row per confirmed round; discarded rounds are absent. With no winners, returns the header
+        row only,
+
+        which still counts as exported. Sets `csvExportedAt` and `csvUpToDate`. Cells starting with `= + - @` are
+        escaped.
+      tags:
+        - Controller
+      x-api: 15
+      x-owner:
+        story: BE-28
+        engineer: Shreya
+      security:
+        - controllerToken: []
+      responses:
+        "200":
+          description: CSV file.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+            Content-Disposition:
+              schema:
+                type: string
+              example: attachment; filename="prompt-heist-winners.csv"
+          content:
+            text/csv:
+              schema:
+                type: string
+              example: |
+                full_name,entrance_id,round_number,confirmed_at,winning_score,treasure_title,treasure_id
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "409":
+          description: "`EVENT_CLOSED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                EVENT_CLOSED:
+                  $ref: "#/components/examples/EVENT_CLOSED"
+  /api/controller/event/close:
+    post:
+      operationId: closeEvent
+      summary: API 16 · Close the event day
+      description: >-
+        Allowed in any phase. A live round is stopped, and any unconfirmed result is lost (D44).
+
+        Blocked until a CSV covering every confirmed winner has been exported; with no winners, an empty CSV must still
+        be exported.
+
+        Calling it again from `CLOSING_FAILED` retries the deletion. Outcome arrives on `event:status` and API 17.
+      tags:
+        - Controller
+      x-api: 16
+      x-owner:
+        story: BE-29
+        engineer: Shreya
+      security:
+        - controllerToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - confirmation
+              properties:
+                confirmation:
+                  type: string
+                  examples:
+                    - CLOSE EVENT
+                  description: Must be exactly `CLOSE EVENT`.
+      responses:
+        "202":
+          description: Closing started.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    $ref: "#/components/schemas/EventStatus"
+                    examples:
+                      - CLOSING
+              example:
+                status: CLOSING
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "409":
+          description: "`CSV_NOT_EXPORTED` · `EVENT_CLOSED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                CSV_NOT_EXPORTED:
+                  $ref: "#/components/examples/CSV_NOT_EXPORTED"
+                EVENT_CLOSED:
+                  $ref: "#/components/examples/EVENT_CLOSED"
+        "422":
+          description: "`CONFIRMATION_REQUIRED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                CONFIRMATION_REQUIRED:
+                  $ref: "#/components/examples/CONFIRMATION_REQUIRED"
+  /api/controller/event/status:
+    get:
+      operationId: getEventStatus
+      summary: API 17 · Event status
+      description: Reads the single status record kept after deletion (D4).
+      tags:
+        - Controller
+      x-api: 17
+      x-owner:
+        story: BE-29
+        engineer: Shreya
+      security:
+        - controllerToken: []
+      responses:
+        "200":
+          description: Event status.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - closedAt
+                  - failure
+                properties:
+                  status:
+                    $ref: "#/components/schemas/EventStatus"
+                  closedAt:
+                    oneOf:
+                      - $ref: "#/components/schemas/Timestamp"
+                      - type: "null"
+                  failure:
+                    oneOf:
+                      - $ref: "#/components/schemas/EventCloseFailure"
+                      - type: "null"
+              example:
+                status: CLOSED
+                closedAt: "2026-12-05T20:00:00.000Z"
+                failure: null
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+  /api/controller/health/agents:
+    get:
+      operationId: getAgentHealth
+      summary: API 18 · Agent health
+      description: Cached for 60 seconds. All five agents must be up to start a round (D28).
+      tags:
+        - Controller
+      x-api: 18
+      x-owner:
+        story: BE-14
+        engineer: Shreya
+      security:
+        - controllerToken: []
+      responses:
+        "200":
+          description: Agent health.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - checkedAt
+                  - allHealthy
+                  - agents
+                properties:
+                  checkedAt:
+                    $ref: "#/components/schemas/Timestamp"
+                  allHealthy:
+                    type: boolean
+                  agents:
+                    type: object
+                    required:
+                      - treasure
+                      - image
+                      - filter
+                      - guard
+                      - emoji
+                    properties:
+                      treasure:
+                        $ref: "#/components/schemas/AgentHealth"
+                      image:
+                        $ref: "#/components/schemas/AgentHealth"
+                      filter:
+                        $ref: "#/components/schemas/AgentHealth"
+                      guard:
+                        $ref: "#/components/schemas/AgentHealth"
+                      emoji:
+                        $ref: "#/components/schemas/AgentHealth"
+              example:
+                checkedAt: "2026-12-05T10:00:00.000Z"
+                allHealthy: true
+                agents:
+                  treasure:
+                    status: UP
+                    latencyMs: 820
+                    model: gemini-flash
+                  image:
+                    status: UP
+                    latencyMs: 300
+                    model: gemini-flash
+                  filter:
+                    status: UP
+                    latencyMs: 400
+                    model: gemini-flash
+                  guard:
+                    status: UP
+                    latencyMs: 900
+                    model: gemini-flash
+                  emoji:
+                    status: UP
+                    latencyMs: 500
+                    model: gemini-flash
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+  /api/controller/audit-logs:
+    get:
+      operationId: listAuditLogs
+      summary: API 19 · Audit log
+      description: Newest first, paginated.
+      tags:
+        - Controller
+      x-api: 19
+      x-owner:
+        story: BE-26
+        engineer: Shreya
+      security:
+        - controllerToken: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+          example: 50
+        - name: cursor
+          in: query
+          required: false
+          description: "`nextCursor` from the previous page."
+          schema:
+            type: string
+      responses:
+        "200":
+          description: One page of audit entries.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                  - nextCursor
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AuditEntry"
+                  nextCursor:
+                    oneOf:
+                      - type: string
+                      - type: "null"
+              example:
+                items:
+                  - id: aud_1
+                    at: "2026-12-05T10:00:00.000Z"
+                    actor: controller
+                    action: TREASURE_APPROVED
+                    summary: Treasure approved - The Saffron Vault
+                    reason: null
+                    correlationId: corr_example
+                nextCursor: null
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+  /api/player/join/code:
+    post:
+      operationId: checkJoinCode
+      summary: API 20 · Check join code
+      description: Validates only; does not claim the slot. Failure changes nothing, and retries are unlimited.
+      tags:
+        - Player
+      x-api: 20
+      x-owner:
+        story: BE-10
+        engineer: Asmita
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+              properties:
+                code:
+                  type: string
+                  examples:
+                    - "12"
+      responses:
+        "200":
+          description: Valid unclaimed code.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - joinToken
+                  - expiresAt
+                  - slot
+                properties:
+                  joinToken:
+                    type: string
+                    examples:
+                      - <5-minute token>
+                  expiresAt:
+                    $ref: "#/components/schemas/Timestamp"
+                  slot:
+                    type: object
+                    required:
+                      - slotNumber
+                      - capacity
+                      - shape
+                    properties:
+                      slotNumber:
+                        $ref: "#/components/schemas/SlotNumber"
+                      capacity:
+                        type: integer
+                        examples:
+                          - 5
+                      shape:
+                        $ref: "#/components/schemas/Shape"
+              example:
+                joinToken: <5-minute token>
+                expiresAt: "2026-12-05T10:05:00.000Z"
+                slot:
+                  slotNumber: 1
+                  capacity: 5
+                  shape: BLUE_CIRCLE
+        "404":
+          description: "`CODE_INVALID`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                CODE_INVALID:
+                  $ref: "#/components/examples/CODE_INVALID"
+        "409":
+          description: "`CODE_ALREADY_CLAIMED` · `NO_ACTIVE_SESSION`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                CODE_ALREADY_CLAIMED:
+                  $ref: "#/components/examples/CODE_ALREADY_CLAIMED"
+                NO_ACTIVE_SESSION:
+                  $ref: "#/components/examples/NO_ACTIVE_SESSION"
+  /api/player/join:
+    post:
+      operationId: joinSession
+      summary: API 21 · Join the session
+      description: >-
+        Slot claim, player create and entrance-ID create happen in one transaction. New players start with `nameReview:
+        PENDING`.
+
+        On a first-name collision, all colliding players are relabelled, for example `Meera (Player 2)`, `Meera (Player
+        5)`.
+      tags:
+        - Player
+      x-api: 21
+      x-owner:
+        story: BE-11
+        engineer: Asmita
+      security:
+        - joinToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fullName
+                - entranceId
+              properties:
+                fullName:
+                  type: string
+                  examples:
+                    - Aman Sharma
+                  maxLength: 80
+                entranceId:
+                  type: string
+                  examples:
+                    - DF-2026-0007
+                  maxLength: 128
+                  description: Any characters, no format validation (D12). Matched after trimming and lower-casing (D26).
+      responses:
+        "201":
+          description: Joined.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - playerToken
+                  - player
+                properties:
+                  playerToken:
+                    type: string
+                    examples:
+                      - <token>
+                  player:
+                    $ref: "#/components/schemas/PlayerSelf"
+              example:
+                playerToken: <token>
+                player:
+                  id: ply_1
+                  slotNumber: 1
+                  label: Aman
+                  shape: BLUE_CIRCLE
+                  state: LOBBY
+        "401":
+          description: "`JOIN_TOKEN_EXPIRED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                JOIN_TOKEN_EXPIRED:
+                  $ref: "#/components/examples/JOIN_TOKEN_EXPIRED"
+        "409":
+          description: "`ENTRANCE_ID_IN_SESSION` · `ENTRANCE_ID_USED` · `CODE_ALREADY_CLAIMED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                ENTRANCE_ID_IN_SESSION:
+                  $ref: "#/components/examples/ENTRANCE_ID_IN_SESSION"
+                ENTRANCE_ID_USED:
+                  $ref: "#/components/examples/ENTRANCE_ID_USED"
+                CODE_ALREADY_CLAIMED:
+                  $ref: "#/components/examples/CODE_ALREADY_CLAIMED"
+        "422":
+          description: "`NAME_REQUIRED` · `ENTRANCE_ID_REQUIRED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                NAME_REQUIRED:
+                  $ref: "#/components/examples/NAME_REQUIRED"
+                ENTRANCE_ID_REQUIRED:
+                  $ref: "#/components/examples/ENTRANCE_ID_REQUIRED"
+  /api/player/rejoin:
+    post:
+      operationId: rejoinSession
+      summary: API 22 · Rejoin
+      description: |-
+        Restores the slot, issues a new token, revokes the old one and sends `player:kicked` to the old device.
+        Restores stored state, including `LOCKED_100`. Rate limited at 10 per IP per minute.
+      tags:
+        - Player
+      x-api: 22
+      x-owner:
+        story: BE-12
+        engineer: Asmita
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - entranceId
+              properties:
+                entranceId:
+                  type: string
+                  examples:
+                    - DF-2026-0007
+      responses:
+        "200":
+          description: Rejoined.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - playerToken
+                  - player
+                properties:
+                  playerToken:
+                    type: string
+                    examples:
+                      - <new token>
+                  player:
+                    $ref: "#/components/schemas/PlayerSelf"
+              example:
+                playerToken: <new token>
+                player:
+                  id: ply_1
+                  slotNumber: 1
+                  label: Aman
+                  shape: BLUE_CIRCLE
+                  state: PLAYING
+        "404":
+          description: "`NO_ACTIVE_GAME`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                NO_ACTIVE_GAME:
+                  $ref: "#/components/examples/NO_ACTIVE_GAME"
+        "429":
+          description: "`TOO_MANY_ATTEMPTS`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                TOO_MANY_ATTEMPTS:
+                  $ref: "#/components/examples/TOO_MANY_ATTEMPTS"
+  /api/player/me:
+    get:
+      operationId: getPlayerMe
+      summary: API 23 · Player state (player hydrate)
+      description: >-
+        Used on load and on every reconnect. `treasure` and `round` are null before the round starts.
+
+        `players` is empty until every name is approved. Other players' `bestScore` is not included.
+
+        `401 TOKEN_SUPERSEDED`: show the kicked screen. `401 SESSION_CLOSED`: clear the phone and return to the booth
+        code screen.
+      tags:
+        - Player
+        - Hydrate
+      x-api: 23
+      x-owner:
+        story: BE-13
+        engineer: Asmita
+      security:
+        - playerToken: []
+      responses:
+        "200":
+          description: Player view.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlayerView"
+              example:
+                serverNow: "2026-12-05T10:00:00.000Z"
+                player:
+                  id: ply_1
+                  slotNumber: 1
+                  label: Aman
+                  shape: BLUE_CIRCLE
+                  state: PLAYING
+                  bestScore: 45
+                session:
+                  id: ses_01
+                  phase: PLAYING
+                  capacity: 5
+                  joinedCount: 5
+                players:
+                  - slotNumber: 1
+                    label: Aman
+                    shape: BLUE_CIRCLE
+                    connection: CONNECTED
+                    state: PLAYING
+                treasure:
+                  treasureId: cnd_1
+                  title: The Golden Mango of Eternal Juiciness
+                  backstory: Barnaby the flamingo guard hates his job and is severely underpaid in shrimp.
+                  lockObjective: Convince Barnaby the Flamingo Guard to unlock the Golden Mango.
+                  imageUrl: https://storage.example.com/treasures/cnd_1.png?signature=abc
+                round:
+                  roundId: rnd_1
+                  roundNumber: 1
+                  durationSeconds: 90
+                  startedAt: "2026-12-05T10:00:00.000Z"
+                  roundEndAt: "2026-12-05T10:01:30.000Z"
+                prompts:
+                  - promptId: prm_1
+                    text: apple
+                    status: SCORED
+                    score: 9
+                    feedback: The Guard yawns...
+                    receivedAt: "2026-12-05T10:00:12.000Z"
+                canSubmit: true
+        "401":
+          description: "`TOKEN_SUPERSEDED` · `SESSION_CLOSED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                TOKEN_SUPERSEDED:
+                  $ref: "#/components/examples/TOKEN_SUPERSEDED"
+                SESSION_CLOSED:
+                  $ref: "#/components/examples/SESSION_CLOSED"
+  /api/player/prompts:
+    post:
+      operationId: submitPrompt
+      summary: API 24 · Submit a prompt
+      description: |-
+        The player comes from the token only. Accepted only if received strictly before `roundEndAt`.
+        Text is 1 to 200 characters after trimming (D6), checked by the server, so not expressed as minLength/maxLength.
+        202 for a new prompt; 200 with the stored state for a repeated `Idempotency-Key` (no re-score, no re-display).
+        A player may have several prompts in flight. Mock: send `Prefer: code=202` to get the new-prompt response.
+      tags:
+        - Player
+      x-api: 24
+      x-owner:
+        story: BE-21
+        engineer: Shravani
+      security:
+        - playerToken: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                  examples:
+                    - Write a polite 3-line poem...
+                  description: 1 to 200 characters after trimming.
+      responses:
+        "200":
+          description: Repeat of a known `Idempotency-Key`. Returns the stored state.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromptReceipt"
+              example:
+                promptId: prm_1
+                status: RECEIVED
+                sequence: 19
+                receivedAt: "2026-12-05T10:00:41.250Z"
+        "202":
+          description: New prompt accepted. Scoring happens asynchronously.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromptReceipt"
+              example:
+                promptId: prm_1
+                status: RECEIVED
+                sequence: 19
+                receivedAt: "2026-12-05T10:00:41.250Z"
+        "400":
+          description: "`IDEMPOTENCY_KEY_REQUIRED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                IDEMPOTENCY_KEY_REQUIRED:
+                  $ref: "#/components/examples/IDEMPOTENCY_KEY_REQUIRED"
+        "401":
+          description: "`TOKEN_SUPERSEDED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                TOKEN_SUPERSEDED:
+                  $ref: "#/components/examples/TOKEN_SUPERSEDED"
+        "409":
+          description: "`ROUND_NOT_PLAYING` · `ROUND_EXPIRED` · `PLAYER_LOCKED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                ROUND_NOT_PLAYING:
+                  $ref: "#/components/examples/ROUND_NOT_PLAYING"
+                ROUND_EXPIRED:
+                  $ref: "#/components/examples/ROUND_EXPIRED"
+                PLAYER_LOCKED:
+                  $ref: "#/components/examples/PLAYER_LOCKED"
+        "422":
+          description: "`PROMPT_EMPTY` · `PROMPT_TOO_LONG`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PROMPT_EMPTY:
+                  $ref: "#/components/examples/PROMPT_EMPTY"
+                PROMPT_TOO_LONG:
+                  $ref: "#/components/examples/PROMPT_TOO_LONG"
+  /api/player/prompts/{id}:
+    get:
+      operationId: getPromptStatus
+      summary: API 25 · Prompt status
+      description: "Fallback if a socket event is missed. Owner only: someone else's prompt also returns 404."
+      tags:
+        - Player
+      x-api: 25
+      x-owner:
+        story: BE-23
+        engineer: Asmita
+      security:
+        - playerToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Prompt ID.
+          schema:
+            type: string
+          example: prm_1
+      responses:
+        "200":
+          description: Prompt status.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - promptId
+                  - status
+                  - score
+                  - feedback
+                  - message
+                  - receivedAt
+                  - sequence
+                properties:
+                  promptId:
+                    type: string
+                    examples:
+                      - prm_1
+                  status:
+                    $ref: "#/components/schemas/PromptStatus"
+                  score:
+                    oneOf:
+                      - $ref: "#/components/schemas/Score"
+                      - type: "null"
+                  feedback:
+                    oneOf:
+                      - type: string
+                      - type: "null"
+                  message:
+                    oneOf:
+                      - type: string
+                      - type: "null"
+                  receivedAt:
+                    $ref: "#/components/schemas/Timestamp"
+                  sequence:
+                    type: integer
+                    examples:
+                      - 19
+              example:
+                promptId: prm_1
+                status: SCORED
+                score: 9
+                feedback: The Guard yawns...
+                message: null
+                receivedAt: "2026-12-05T10:00:12.000Z"
+                sequence: 19
+        "401":
+          description: "`TOKEN_SUPERSEDED` · `SESSION_CLOSED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                TOKEN_SUPERSEDED:
+                  $ref: "#/components/examples/TOKEN_SUPERSEDED"
+                SESSION_CLOSED:
+                  $ref: "#/components/examples/SESSION_CLOSED"
+        "404":
+          description: "`NOT_FOUND`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                NOT_FOUND:
+                  $ref: "#/components/examples/NOT_FOUND"
+  /api/player/result:
+    get:
+      operationId: getPlayerResult
+      summary: API 26 · Player result
+      description: >-
+        `PENDING` until the Controller confirms. A provisional winner is never shown to players. `myRank` comes from the
+        token.
+
+        A player with no score has `bestScore: null`, shown as zero (D40).
+      tags:
+        - Player
+      x-api: 26
+      x-owner:
+        story: BE-23
+        engineer: Asmita
+      security:
+        - playerToken: []
+      responses:
+        "200":
+          description: Pending or confirmed result.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required:
+                      - status
+                    properties:
+                      status:
+                        const: PENDING
+                  - $ref: "#/components/schemas/PlayerResultConfirmed"
+              examples:
+                pending:
+                  value:
+                    status: PENDING
+                confirmed:
+                  value:
+                    status: CONFIRMED
+                    roundNumber: 2
+                    myRank: 4
+                    winner:
+                      slotNumber: 3
+                      label: Rohan
+                      shape: YELLOW_DIAMOND
+                      bestScore: 73
+                    ranking:
+                      - rank: 1
+                        slotNumber: 3
+                        label: Rohan
+                        shape: YELLOW_DIAMOND
+                        bestScore: 73
+                    tieBreakExplanation: null
+                    story:
+                      title: The Golden Chai Cup
+                      backstory: A chai cup guarded by a grumpy kettle. (A simulated treasure.)
+                      imageUrl: https://storage.example.com/treasures/cnd_9.png?signature=abc
+        "401":
+          description: "`TOKEN_SUPERSEDED` · `SESSION_CLOSED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                TOKEN_SUPERSEDED:
+                  $ref: "#/components/examples/TOKEN_SUPERSEDED"
+                SESSION_CLOSED:
+                  $ref: "#/components/examples/SESSION_CLOSED"
+  /api/display/state:
+    get:
+      operationId: getDisplayState
+      summary: API 27 · Display state (display hydrate)
+      description: >-
+        Public and allow-listed: never contains full names, entrance IDs, rubric, or blocked or pending prompts.
+
+        `phase` is `SETUP` when no session is open. `treasure` is null until the round starts.
+
+        `players` is empty until every name is approved, so the screen shows `joinedCount` only, then all names at once
+        (D16).
+      tags:
+        - Display
+        - Hydrate
+      x-api: 27
+      x-owner:
+        story: BE-13
+        engineer: Asmita
+      security: []
+      responses:
+        "200":
+          description: Display view.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisplayState"
+              example:
+                serverNow: "2026-12-05T10:00:00.000Z"
+                phase: PLAYING
+                joinUrl: heist.devfestpune.dev
+                session:
+                  capacity: 5
+                  joinedCount: 5
+                players:
+                  - slotNumber: 1
+                    label: Isha
+                    shape: BLUE_CIRCLE
+                    connection: CONNECTED
+                    state: LOCKED_100
+                    bestScore: 100
+                    latest:
+                      text: Write a polite 3-line poem...
+                      reaction: Guard ne salute maara!
+                      expression: SALUTE
+                treasure:
+                  treasureId: cnd_1
+                  title: The Golden Mango of Eternal Juiciness
+                  backstory: Barnaby the flamingo guard hates his job and is severely underpaid in shrimp.
+                  lockObjective: Convince Barnaby the Flamingo Guard to unlock the Golden Mango.
+                  imageUrl: https://storage.example.com/treasures/cnd_1.png?signature=abc
+                round:
+                  roundId: rnd_1
+                  roundNumber: 1
+                  durationSeconds: 90
+                  roundEndAt: "2026-12-05T10:01:30.000Z"
+                unlocked:
+                  - Isha
+                  - Meera (Player 5)
+                result: null
+  /api/controller/sessions/{id}/close:
+    post:
+      operationId: closeSession
+      summary: API 28 · Close or abandon a session
+      description: >-
+        Closes the session without opening another. Used to abandon a session (from `JOINING`, `TREASURE_REVIEW`,
+        `READY`)
+
+        and by the End session button (from `RESULTS`). Abandoning releases entrance IDs (D31).
+
+        Emits `session:closed`, then revokes player tokens (D30).
+      tags:
+        - Controller
+      x-api: 28
+      x-owner:
+        story: BE-36
+        engineer: Asmita
+      security:
+        - controllerToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Session ID.
+          schema:
+            type: string
+          example: ses_01
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              required: []
+              properties:
+                reason:
+                  type: string
+                  examples:
+                    - Only 3 players turned up
+                  description: Required except from `RESULTS`.
+      responses:
+        "200":
+          description: Closed.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - session
+                properties:
+                  session:
+                    type: object
+                    required:
+                      - id
+                      - phase
+                    properties:
+                      id:
+                        type: string
+                        examples:
+                          - ses_01
+                      phase:
+                        $ref: "#/components/schemas/Phase"
+                        examples:
+                          - CLOSED
+              example:
+                session:
+                  id: ses_01
+                  phase: CLOSED
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "409":
+          description: "`INVALID_PHASE` · `EVENT_CLOSING_FAILED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INVALID_PHASE:
+                  $ref: "#/components/examples/INVALID_PHASE"
+                EVENT_CLOSING_FAILED:
+                  $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+        "422":
+          description: "`REASON_REQUIRED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                REASON_REQUIRED:
+                  $ref: "#/components/examples/REASON_REQUIRED"
+  /api/controller/sessions/{id}/next-group:
+    post:
+      operationId: nextGroup
+      summary: API 29 · Next group
+      description: |-
+        In one transaction: closes the session and opens a fresh one with the same capacity and duration (D2, D45).
+        Allowed from `RESULTS` only. No request body. Replaying the same `Idempotency-Key` returns the same new session.
+      tags:
+        - Controller
+      x-api: 29
+      x-owner:
+        story: BE-36
+        engineer: Asmita
+      security:
+        - controllerToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Session ID.
+          schema:
+            type: string
+          example: ses_01
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "201":
+          description: New session opened.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - closedSessionId
+                  - session
+                  - slots
+                properties:
+                  closedSessionId:
+                    type: string
+                    examples:
+                      - ses_01
+                  session:
+                    $ref: "#/components/schemas/ActiveSession"
+                  slots:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ControllerSlot"
+              example:
+                closedSessionId: ses_01
+                session:
+                  id: ses_02
+                  phase: JOINING
+                  capacity: 5
+                  roundDurationSeconds: 90
+                  joinedCount: 0
+                slots:
+                  - slotNumber: 1
+                    code: "41"
+                    shape: BLUE_CIRCLE
+                    slotState: UNJOINED
+                    player: null
+        "400":
+          description: "`IDEMPOTENCY_KEY_REQUIRED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                IDEMPOTENCY_KEY_REQUIRED:
+                  $ref: "#/components/examples/IDEMPOTENCY_KEY_REQUIRED"
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "409":
+          description: "`INVALID_PHASE` · `EVENT_CLOSING_FAILED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INVALID_PHASE:
+                  $ref: "#/components/examples/INVALID_PHASE"
+                EVENT_CLOSING_FAILED:
+                  $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+  /api/controller/players/{id}/name-review:
+    post:
+      operationId: reviewPlayerName
+      summary: API 30 · Review a player name
+      description: >-
+        Approve a name, or reject it with a replacement typed by the Controller (D16). A replacement changes the name
+        everywhere,
+
+        including the CSV, and goes through the same label collision rule as join. When the last name is approved,
+        `players:revealed` is emitted.
+      tags:
+        - Controller
+      x-api: 30
+      x-owner:
+        story: BE-39
+        engineer: Shreya
+      security:
+        - controllerToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Player ID.
+          schema:
+            type: string
+          example: ply_1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required:
+                    - decision
+                  properties:
+                    decision:
+                      const: APPROVED
+                - type: object
+                  required:
+                    - decision
+                    - fullName
+                  properties:
+                    decision:
+                      const: RENAMED
+                    fullName:
+                      type: string
+                      examples:
+                        - Aman Sharma
+      responses:
+        "200":
+          description: Reviewed.
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - player
+                  - allApproved
+                properties:
+                  player:
+                    type: object
+                    required:
+                      - id
+                      - label
+                      - nameReview
+                    properties:
+                      id:
+                        type: string
+                        examples:
+                          - ply_1
+                      label:
+                        $ref: "#/components/schemas/Label"
+                      nameReview:
+                        $ref: "#/components/schemas/NameReview"
+                  allApproved:
+                    type: boolean
+              example:
+                player:
+                  id: ply_1
+                  label: Aman
+                  nameReview: APPROVED
+                allApproved: false
+        "401":
+          description: "`UNAUTHENTICATED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
+        "404":
+          description: "`NOT_FOUND`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                NOT_FOUND:
+                  $ref: "#/components/examples/NOT_FOUND"
+        "409":
+          description: "`INVALID_PHASE` · `EVENT_CLOSING_FAILED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                INVALID_PHASE:
+                  $ref: "#/components/examples/INVALID_PHASE"
+                EVENT_CLOSING_FAILED:
+                  $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+        "422":
+          description: "`NAME_REQUIRED`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                NAME_REQUIRED:
+                  $ref: "#/components/examples/NAME_REQUIRED"
 components:
+  securitySchemes:
+    controllerToken:
+      type: http
+      scheme: bearer
+      description: "`controllerToken`, valid for 12 hours. Logout revokes it."
+    joinToken:
+      type: http
+      scheme: bearer
+      description: "`joinToken`, valid for 5 minutes. Issued by API 20, used by API 21."
+    playerToken:
+      type: http
+      scheme: bearer
+      description: "`playerToken`, valid until the session closes or the player rejoins elsewhere."
   headers:
-    CorrelationId:
-      description: Returned on every response.
+    X-Correlation-Id:
+      description: Present on every response. Matches `error.correlationId` on errors.
+      required: true
       schema:
         type: string
+      example: corr_example
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Required. Reuse the same key on a retry.
+      schema:
+        type: string
+        format: uuid
+      example: 3f1c2a9e-8b4d-4c1e-9a7f-2d5e6b8c0a11
   schemas:
-    Health:
+    Timestamp:
+      type: string
+      format: date-time
+      description: ISO 8601 UTC with milliseconds.
+      examples:
+        - "2026-12-05T10:00:00.000Z"
+    Score:
+      type: integer
+      minimum: 0
+      maximum: 100
+      description: "Integer 0 to 100. Colours: 0–39 red, 40–79 yellow, 80–99 blue, 100 green."
+    SlotNumber:
+      type: integer
+      minimum: 1
+      maximum: 5
+    Label:
+      type: string
+      description: "Public label: the first name, with \"(Player N)\" added on a first-name collision. Never the full name."
+      examples:
+        - Dev
+    Phase:
+      type: string
+      description: Session phase. `SETUP` means no session is open.
+      enum:
+        - SETUP
+        - JOINING
+        - TREASURE_REVIEW
+        - READY
+        - PLAYING
+        - RESULT_PENDING
+        - RESULTS
+        - DISCARDED
+        - CLOSED
+    PlayerState:
+      type: string
+      enum:
+        - LOBBY
+        - PLAYING
+        - LOCKED_100
+        - RESULT_PENDING
+        - COMPLETE
+    Connection:
+      type: string
+      enum:
+        - CONNECTED
+        - DISCONNECTED
+    SlotState:
+      type: string
+      description: Controller view of a slot.
+      enum:
+        - UNJOINED
+        - LOBBY
+        - PLAYING
+        - LOCKED_100
+        - DISCONNECTED
+        - RESULT_PENDING
+        - COMPLETE
+    PromptStatus:
+      type: string
+      enum:
+        - RECEIVED
+        - FILTERING
+        - BLOCKED
+        - APPROVED
+        - SCORING
+        - SCORED
+        - FAILED
+        - DISPLAYED
+    EventStatus:
+      type: string
+      enum:
+        - OPEN
+        - CLOSING
+        - CLOSED
+        - CLOSING_FAILED
+    Shape:
+      type: string
+      description: Colour marker, fixed by slot.
+      enum:
+        - BLUE_CIRCLE
+        - RED_SQUARE
+        - YELLOW_DIAMOND
+        - GREEN_PILL
+        - GREEN_CIRCLE
+      x-by-slot:
+        "1": BLUE_CIRCLE
+        "2": RED_SQUARE
+        "3": YELLOW_DIAMOND
+        "4": GREEN_PILL
+        "5": GREEN_CIRCLE
+    ResultStatus:
+      type: string
+      description: API 12 (BE-24).
+      enum:
+        - PROVISIONAL
+        - CONFIRMED
+    NameReview:
+      type: string
+      description: BE-08, BE-39.
+      enum:
+        - PENDING
+        - APPROVED
+    CandidateStatus:
+      type: string
+      description: Treasure candidate status (BE-19). The internal blocked state is never exposed.
+      enum:
+        - GENERATING
+        - READY
+        - FAILED
+        - APPROVED
+        - REJECTED
+    AgentStatus:
+      type: string
+      description: API 18 (BE-14).
+      enum:
+        - UP
+        - DOWN
+    Expression:
+      type: string
+      description: "Emoji face (BE-18). Starting list: the final list comes from FE-31. `NEUTRAL` when the reaction failed (D49)."
+      enum:
+        - NEUTRAL
+        - BORED
+        - UNIMPRESSED
+        - CURIOUS
+        - IMPRESSED
+        - SHOCKED
+        - SALUTE
+    Error:
       type: object
-      required: [status]
-      properties:
-        status:
-          type: string
-          enum: [ok]
-    ErrorEnvelope:
-      type: object
-      required: [error]
+      required:
+        - error
       properties:
         error:
           type: object
-          required: [code, message, correlationId]
+          required:
+            - code
+            - message
+            - correlationId
           properties:
             code:
-              type: string
-              examples: [ROUND_EXPIRED]
+              $ref: "#/components/schemas/ErrorCode"
             message:
               type: string
-              description: Safe text for the user.
+              examples:
+                - Safe text for the user
             correlationId:
               type: string
+              examples:
+                - corr_example
+    ControllerAccount:
+      type: object
+      required:
+        - id
+        - username
+      properties:
+        id:
+          type: string
+          examples:
+            - ctl_1
+        username:
+          type: string
+          examples:
+            - controller
+    LoginResponse:
+      type: object
+      required:
+        - token
+        - expiresAt
+        - controller
+      properties:
+        token:
+          type: string
+          examples:
+            - <controllerToken>
+        expiresAt:
+          $ref: "#/components/schemas/Timestamp"
+        controller:
+          $ref: "#/components/schemas/ControllerAccount"
+    NewSession:
+      type: object
+      required:
+        - id
+        - phase
+        - capacity
+        - roundDurationSeconds
+        - joinedCount
+        - createdAt
+      properties:
+        id:
+          type: string
+          examples:
+            - ses_01
+        phase:
+          $ref: "#/components/schemas/Phase"
+          examples:
+            - JOINING
+        capacity:
+          type: integer
+          examples:
+            - 5
+        roundDurationSeconds:
+          type: integer
+          examples:
+            - 90
+        joinedCount:
+          type: integer
+          examples:
+            - 0
+        createdAt:
+          $ref: "#/components/schemas/Timestamp"
+    ActiveSession:
+      type: object
+      required:
+        - id
+        - phase
+        - capacity
+        - roundDurationSeconds
+        - joinedCount
+      properties:
+        id:
+          type: string
+          examples:
+            - ses_01
+        phase:
+          $ref: "#/components/schemas/Phase"
+          examples:
+            - JOINING
+        capacity:
+          type: integer
+          examples:
+            - 5
+        roundDurationSeconds:
+          type: integer
+          examples:
+            - 90
+        joinedCount:
+          type: integer
+          examples:
+            - 0
+    ControllerSlot:
+      type: object
+      required:
+        - slotNumber
+        - code
+        - shape
+        - slotState
+        - player
+      properties:
+        slotNumber:
+          $ref: "#/components/schemas/SlotNumber"
+        code:
+          type: string
+          examples:
+            - "29"
+          pattern: ^[0-9]{2}$
+          description: 2-digit booth code, unique within the session.
+        shape:
+          $ref: "#/components/schemas/Shape"
+        slotState:
+          $ref: "#/components/schemas/SlotState"
+        player:
+          oneOf:
+            - $ref: "#/components/schemas/ControllerSlotPlayer"
+            - type: "null"
+    ControllerSlotPlayer:
+      type: object
+      required:
+        - id
+        - label
+        - fullName
+        - entranceId
+        - connection
+        - bestScore
+        - nameReview
+      properties:
+        id:
+          type: string
+          examples:
+            - ply_1
+        label:
+          $ref: "#/components/schemas/Label"
+        fullName:
+          type: string
+          examples:
+            - Neha Rao
+        entranceId:
+          type: string
+          examples:
+            - DF-2026-2802
+        connection:
+          $ref: "#/components/schemas/Connection"
+        bestScore:
+          oneOf:
+            - $ref: "#/components/schemas/Score"
+            - type: "null"
+        nameReview:
+          $ref: "#/components/schemas/NameReview"
+      description: Controller only. Contains fullName and entranceId.
+    ControllerDashboard:
+      type: object
+      required:
+        - serverNow
+        - eventDay
+        - session
+        - slots
+        - audit
+      properties:
+        serverNow:
+          $ref: "#/components/schemas/Timestamp"
+        eventDay:
+          type: object
+          required:
+            - id
+            - status
+            - confirmedCount
+            - csvExportedAt
+            - csvUpToDate
+            - lastSettings
+            - winners
+          properties:
+            id:
+              type: string
+              examples:
+                - evt_01
+            status:
+              $ref: "#/components/schemas/EventStatus"
+            confirmedCount:
+              type: integer
+              examples:
+                - 1
+            csvExportedAt:
+              oneOf:
+                - $ref: "#/components/schemas/Timestamp"
+                - type: "null"
+            csvUpToDate:
+              type: boolean
+            lastSettings:
+              oneOf:
+                - type: object
+                  required:
+                    - capacity
+                    - roundDurationSeconds
+                  properties:
+                    capacity:
+                      type: integer
+                      examples:
+                        - 5
+                    roundDurationSeconds:
+                      type: integer
+                      examples:
+                        - 90
+                - type: "null"
+            winners:
+              type: array
+              items:
+                type: object
+                required:
+                  - roundNumber
+                  - fullName
+                  - score
+                properties:
+                  roundNumber:
+                    type: integer
+                    examples:
+                      - 1
+                  fullName:
+                    type: string
+                    examples:
+                      - Dev Khan
+                  score:
+                    $ref: "#/components/schemas/Score"
+        session:
+          oneOf:
+            - $ref: "#/components/schemas/ActiveSession"
+            - type: "null"
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/ControllerSlot"
+        treasure:
+          oneOf:
+            - $ref: "#/components/schemas/ControllerTreasure"
+            - type: "null"
+        round:
+          oneOf:
+            - type: object
+              required:
+                - roundId
+                - roundNumber
+                - durationSeconds
+                - startedAt
+                - roundEndAt
+              properties:
+                roundId:
+                  type: string
+                  examples:
+                    - rnd_1
+                roundNumber:
+                  type: integer
+                  examples:
+                    - 1
+                durationSeconds:
+                  type: integer
+                  examples:
+                    - 90
+                startedAt:
+                  oneOf:
+                    - $ref: "#/components/schemas/Timestamp"
+                    - type: "null"
+                roundEndAt:
+                  oneOf:
+                    - $ref: "#/components/schemas/Timestamp"
+                    - type: "null"
+            - type: "null"
+        audit:
+          type: array
+          items:
+            type: object
+            required:
+              - at
+              - summary
+            properties:
+              at:
+                $ref: "#/components/schemas/Timestamp"
+              summary:
+                type: string
+                examples:
+                  - Session opened - 5 players - 90s round
+      description: "`treasure` and `round` are null until the session has one."
+    CandidateRef:
+      type: object
+      required:
+        - candidateId
+        - status
+      properties:
+        candidateId:
+          type: string
+          examples:
+            - cnd_1
+        status:
+          $ref: "#/components/schemas/CandidateStatus"
+          examples:
+            - GENERATING
+    Rubric:
+      type: object
+      required:
+        - version
+        - scoringCriteria
+      properties:
+        version:
+          type: string
+          examples:
+            - v1
+        scoringCriteria:
+          type: array
+          items:
+            type: string
+          examples:
+            - - Requests a poem
+              - Exactly three lines
+      description: "Hidden rubric. Controller only: must never reach a phone or the display."
+    ControllerTreasure:
+      type: object
+      required:
+        - candidateId
+        - status
+        - title
+        - backstory
+        - lockObjective
+        - imageUrl
+        - filterPassed
+        - rubric
+      properties:
+        candidateId:
+          type: string
+          examples:
+            - cnd_1
+        status:
+          $ref: "#/components/schemas/CandidateStatus"
+        title:
+          type: string
+          examples:
+            - The Saffron Vault
+        backstory:
+          type: string
+        lockObjective:
+          type: string
+        imageUrl:
+          type: string
+          format: uri
+          examples:
+            - https://storage.googleapis.com/...
+        filterPassed:
+          type: boolean
+        rubric:
+          $ref: "#/components/schemas/Rubric"
+      description: Controller view of the treasure, including the rubric.
+    Treasure:
+      type: object
+      required:
+        - treasureId
+        - title
+        - backstory
+        - lockObjective
+        - imageUrl
+      properties:
+        treasureId:
+          type: string
+          examples:
+            - cnd_1
+        title:
+          type: string
+          examples:
+            - The Golden Mango of Eternal Juiciness
+        backstory:
+          type: string
+          examples:
+            - Barnaby the flamingo guard hates his job and is severely underpaid in shrimp.
+        lockObjective:
+          type: string
+          examples:
+            - Convince Barnaby the Flamingo Guard to unlock the Golden Mango.
+        imageUrl:
+          type: string
+          format: uri
+          examples:
+            - https://storage.example.com/treasures/cnd_1.png?signature=abc
+          description: Signed URL, valid for 4 hours.
+      description: Public treasure card (players and display). Never includes the rubric.
+    Round:
+      type: object
+      required:
+        - roundId
+        - roundNumber
+        - durationSeconds
+        - startedAt
+        - roundEndAt
+        - serverNow
+      properties:
+        roundId:
+          type: string
+          examples:
+            - rnd_1
+        roundNumber:
+          type: integer
+          examples:
+            - 1
+          description: Counts confirmed sessions only (D35).
+        durationSeconds:
+          type: integer
+          examples:
+            - 90
+        startedAt:
+          $ref: "#/components/schemas/Timestamp"
+        roundEndAt:
+          $ref: "#/components/schemas/Timestamp"
+        serverNow:
+          $ref: "#/components/schemas/Timestamp"
+    Winner:
+      type: object
+      required:
+        - slotNumber
+        - label
+        - shape
+        - bestScore
+      properties:
+        slotNumber:
+          $ref: "#/components/schemas/SlotNumber"
+        label:
+          $ref: "#/components/schemas/Label"
+        shape:
+          $ref: "#/components/schemas/Shape"
+        bestScore:
+          $ref: "#/components/schemas/Score"
+    RankingEntry:
+      type: object
+      required:
+        - rank
+        - playerId
+        - slotNumber
+        - label
+        - shape
+        - bestScore
+      properties:
+        rank:
+          type: integer
+          examples:
+            - 1
+          minimum: 1
+        playerId:
+          type: string
+          examples:
+            - ply_2
+        slotNumber:
+          $ref: "#/components/schemas/SlotNumber"
+        label:
+          $ref: "#/components/schemas/Label"
+        shape:
+          $ref: "#/components/schemas/Shape"
+        bestScore:
+          oneOf:
+            - $ref: "#/components/schemas/Score"
+            - type: "null"
+        decidingSubmissionId:
+          type: string
+          examples:
+            - prm_19
+        decidingSequence:
+          type: integer
+          examples:
+            - 19
+        decidingReceivedAt:
+          $ref: "#/components/schemas/Timestamp"
+      description: >-
+        Controller ranking row (API 12). The `deciding*` fields are omitted for a player with no score.
+    RoundResult:
+      type: object
+      required:
+        - status
+        - winner
+        - ranking
+        - canConfirm
+      properties:
+        status:
+          $ref: "#/components/schemas/ResultStatus"
+        winner:
+          oneOf:
+            - $ref: "#/components/schemas/Winner"
+            - type: "null"
+        ranking:
+          type: array
+          items:
+            $ref: "#/components/schemas/RankingEntry"
+        tieBreakExplanation:
+          type:
+            - string
+            - "null"
+          examples:
+            - "Tie on 100. Dev reached it first (submission #19 before #32)."
+        canConfirm:
+          type: boolean
+    PublicRankingEntry:
+      type: object
+      required:
+        - rank
+        - slotNumber
+        - label
+        - shape
+        - bestScore
+      properties:
+        rank:
+          type: integer
+          examples:
+            - 1
+          minimum: 1
+        slotNumber:
+          $ref: "#/components/schemas/SlotNumber"
+        label:
+          $ref: "#/components/schemas/Label"
+        shape:
+          $ref: "#/components/schemas/Shape"
+        bestScore:
+          oneOf:
+            - $ref: "#/components/schemas/Score"
+            - type: "null"
+      description: Public ranking row (API 26), with no player ID.
+    PlayerResultConfirmed:
+      type: object
+      required:
+        - status
+        - roundNumber
+        - myRank
+        - winner
+        - ranking
+        - tieBreakExplanation
+        - story
+      properties:
+        status:
+          const: CONFIRMED
+        roundNumber:
+          type: integer
+          examples:
+            - 2
+        myRank:
+          type: integer
+          examples:
+            - 4
+        winner:
+          $ref: "#/components/schemas/Winner"
+        ranking:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicRankingEntry"
+        tieBreakExplanation:
+          oneOf:
+            - type: string
+            - type: "null"
+        story:
+          type: object
+          required:
+            - title
+            - backstory
+            - imageUrl
+          properties:
+            title:
+              type: string
+              examples:
+                - The Golden Chai Cup
+            backstory:
+              type: string
+            imageUrl:
+              type: string
+              format: uri
+    PromptReceipt:
+      type: object
+      required:
+        - promptId
+        - status
+        - sequence
+        - receivedAt
+      properties:
+        promptId:
+          type: string
+          examples:
+            - prm_1
+        status:
+          $ref: "#/components/schemas/PromptStatus"
+          examples:
+            - RECEIVED
+        sequence:
+          type: integer
+          examples:
+            - 19
+        receivedAt:
+          $ref: "#/components/schemas/Timestamp"
+    PlayerPrompt:
+      type: object
+      required:
+        - promptId
+        - text
+        - status
+        - score
+        - feedback
+        - receivedAt
+      properties:
+        promptId:
+          type: string
+          examples:
+            - prm_1
+        text:
+          type: string
+          examples:
+            - apple
+        status:
+          $ref: "#/components/schemas/PromptStatus"
+        score:
+          oneOf:
+            - $ref: "#/components/schemas/Score"
+            - type: "null"
+        feedback:
+          oneOf:
+            - type: string
+              examples:
+                - The Guard yawns...
+            - type: "null"
+        receivedAt:
+          $ref: "#/components/schemas/Timestamp"
+      description: "`score` and `feedback` are null until the prompt is scored."
+    PlayerSelf:
+      type: object
+      required:
+        - id
+        - slotNumber
+        - label
+        - shape
+        - state
+      properties:
+        id:
+          type: string
+          examples:
+            - ply_1
+        slotNumber:
+          $ref: "#/components/schemas/SlotNumber"
+        label:
+          $ref: "#/components/schemas/Label"
+        shape:
+          $ref: "#/components/schemas/Shape"
+        state:
+          $ref: "#/components/schemas/PlayerState"
+    PublicPlayer:
+      type: object
+      required:
+        - slotNumber
+        - label
+        - shape
+        - connection
+        - state
+      properties:
+        slotNumber:
+          $ref: "#/components/schemas/SlotNumber"
+        label:
+          $ref: "#/components/schemas/Label"
+        shape:
+          $ref: "#/components/schemas/Shape"
+        connection:
+          $ref: "#/components/schemas/Connection"
+        state:
+          $ref: "#/components/schemas/PlayerState"
+      description: One entry of the public player list (API 23 `players`).
+    PlayerView:
+      type: object
+      required:
+        - serverNow
+        - player
+        - session
+        - players
+        - treasure
+        - round
+        - prompts
+        - canSubmit
+      properties:
+        serverNow:
+          $ref: "#/components/schemas/Timestamp"
+        player:
+          type: object
+          required:
+            - id
+            - slotNumber
+            - label
+            - shape
+            - state
+            - bestScore
+          properties:
+            id:
+              type: string
+              examples:
+                - ply_1
+            slotNumber:
+              $ref: "#/components/schemas/SlotNumber"
+            label:
+              $ref: "#/components/schemas/Label"
+            shape:
+              $ref: "#/components/schemas/Shape"
+            state:
+              $ref: "#/components/schemas/PlayerState"
+            bestScore:
+              oneOf:
+                - $ref: "#/components/schemas/Score"
+                - type: "null"
+        session:
+          type: object
+          required:
+            - id
+            - phase
+            - capacity
+            - joinedCount
+          properties:
+            id:
+              type: string
+              examples:
+                - ses_01
+            phase:
+              $ref: "#/components/schemas/Phase"
+            capacity:
+              type: integer
+              examples:
+                - 5
+            joinedCount:
+              type: integer
+              examples:
+                - 5
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicPlayer"
+        treasure:
+          oneOf:
+            - $ref: "#/components/schemas/Treasure"
+            - type: "null"
+        round:
+          oneOf:
+            - type: object
+              required:
+                - roundId
+                - roundNumber
+                - durationSeconds
+                - startedAt
+                - roundEndAt
+              properties:
+                roundId:
+                  type: string
+                  examples:
+                    - rnd_1
+                roundNumber:
+                  type: integer
+                  examples:
+                    - 1
+                durationSeconds:
+                  type: integer
+                  examples:
+                    - 90
+                startedAt:
+                  $ref: "#/components/schemas/Timestamp"
+                roundEndAt:
+                  $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        prompts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerPrompt"
+        canSubmit:
+          type: boolean
+    DisplayPlayer:
+      type: object
+      required:
+        - slotNumber
+        - label
+        - shape
+        - connection
+        - state
+        - bestScore
+        - latest
+      properties:
+        slotNumber:
+          $ref: "#/components/schemas/SlotNumber"
+        label:
+          $ref: "#/components/schemas/Label"
+        shape:
+          $ref: "#/components/schemas/Shape"
+        connection:
+          $ref: "#/components/schemas/Connection"
+        state:
+          $ref: "#/components/schemas/PlayerState"
+        bestScore:
+          oneOf:
+            - $ref: "#/components/schemas/Score"
+            - type: "null"
+        latest:
+          oneOf:
+            - type: object
+              required:
+                - text
+                - reaction
+                - expression
+              properties:
+                text:
+                  type: string
+                  examples:
+                    - Write a polite 3-line poem...
+                reaction:
+                  oneOf:
+                    - type: string
+                      examples:
+                        - Guard ne salute maara!
+                    - type: "null"
+                expression:
+                  $ref: "#/components/schemas/Expression"
+            - type: "null"
+      description: "`latest` is the latest approved prompt only."
+    ProvisionalResult:
+      type: object
+      additionalProperties: false
+      required:
+        - roundId
+        - winner
+      properties:
+        roundId:
+          type: string
+          examples:
+            - rnd_1
+        winner:
+          oneOf:
+            - $ref: "#/components/schemas/Winner"
+            - type: "null"
+          description: null when nobody scored (API 12).
+      description: Provisional winner (BE-24). Payload of `result:provisional`, and `DisplayState.result` in `RESULT_PENDING`.
+    ConfirmedResult:
+      type: object
+      required:
+        - roundId
+        - roundNumber
+        - winner
+        - ranking
+        - tieBreakExplanation
+      properties:
+        roundId:
+          type: string
+          examples:
+            - rnd_1
+        roundNumber:
+          type: integer
+          examples:
+            - 1
+        winner:
+          $ref: "#/components/schemas/Winner"
+        ranking:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicRankingEntry"
+          description: Same rows as API 26 `ranking`.
+        tieBreakExplanation:
+          oneOf:
+            - type: string
+            - type: "null"
+      description: >-
+        Confirmed result (BE-25). Payload of `result:confirmed`, and `DisplayState.result` in `RESULTS`. `winner` is never
+        null, because a round with no winner cannot be confirmed (`409 NO_WINNER`).
+    DisplayState:
+      type: object
+      required:
+        - serverNow
+        - phase
+        - joinUrl
+        - session
+        - players
+        - treasure
+        - round
+        - unlocked
+        - result
+      properties:
+        serverNow:
+          $ref: "#/components/schemas/Timestamp"
+        phase:
+          $ref: "#/components/schemas/Phase"
+        joinUrl:
+          type: string
+          examples:
+            - heist.devfestpune.dev
+        session:
+          oneOf:
+            - type: object
+              required:
+                - capacity
+                - joinedCount
+              properties:
+                capacity:
+                  type: integer
+                  examples:
+                    - 5
+                joinedCount:
+                  type: integer
+                  examples:
+                    - 5
+            - type: "null"
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/DisplayPlayer"
+        treasure:
+          oneOf:
+            - $ref: "#/components/schemas/Treasure"
+            - type: "null"
+        round:
+          oneOf:
+            - type: object
+              required:
+                - roundId
+                - roundNumber
+                - durationSeconds
+                - roundEndAt
+              properties:
+                roundId:
+                  type: string
+                  examples:
+                    - rnd_1
+                roundNumber:
+                  type: integer
+                  examples:
+                    - 1
+                durationSeconds:
+                  type: integer
+                  examples:
+                    - 90
+                roundEndAt:
+                  $ref: "#/components/schemas/Timestamp"
+            - type: "null"
+        unlocked:
+          type: array
+          items:
+            $ref: "#/components/schemas/Label"
+        result:
+          oneOf:
+            - $ref: "#/components/schemas/ProvisionalResult"
+            - $ref: "#/components/schemas/ConfirmedResult"
+            - type: "null"
+          description: >-
+            `ProvisionalResult` in `RESULT_PENDING`, `ConfirmedResult` in `RESULTS`, otherwise null. Same shapes as the
+            `result:provisional` and `result:confirmed` socket events, so one parser serves hydrate and live updates.
+      description: "`session` is null when phase is `SETUP` (no session open)."
+    MonitorStats:
+      type: object
+      required:
+        - promptsScored
+        - unlockedCount
+        - blockedCount
+        - agentErrors
+      properties:
+        promptsScored:
+          type: integer
+          examples:
+            - 4
+        unlockedCount:
+          type: integer
+          examples:
+            - 0
+        blockedCount:
+          type: integer
+          examples:
+            - 1
+        agentErrors:
+          type: integer
+          examples:
+            - 0
+    MonitorView:
+      type: object
+      required:
+        - round
+        - stats
+        - approvedPrompts
+        - errors
+      properties:
+        round:
+          type: object
+          required:
+            - roundId
+            - roundNumber
+            - roundEndAt
+            - serverNow
+          properties:
+            roundId:
+              type: string
+              examples:
+                - rnd_1
+            roundNumber:
+              type: integer
+              examples:
+                - 1
+            roundEndAt:
+              $ref: "#/components/schemas/Timestamp"
+            serverNow:
+              $ref: "#/components/schemas/Timestamp"
+        stats:
+          $ref: "#/components/schemas/MonitorStats"
+        approvedPrompts:
+          type: array
+          items:
+            type: object
+            required:
+              - sequence
+              - slotNumber
+              - label
+              - shape
+              - text
+              - score
+              - reaction
+            properties:
+              sequence:
+                type: integer
+                examples:
+                  - 5
+              slotNumber:
+                $ref: "#/components/schemas/SlotNumber"
+              label:
+                $ref: "#/components/schemas/Label"
+              shape:
+                $ref: "#/components/schemas/Shape"
+              text:
+                type: string
+                examples:
+                  - Give me a rhyme...
+              score:
+                $ref: "#/components/schemas/Score"
+              reaction:
+                oneOf:
+                  - type: string
+                    examples:
+                      - Vault ne smile bhi nahi kiya
+                  - type: "null"
+        errors:
+          type: array
+          items:
+            type: object
+            required:
+              - at
+              - agent
+              - code
+            properties:
+              at:
+                $ref: "#/components/schemas/Timestamp"
+              agent:
+                type: string
+                examples:
+                  - guard
+              code:
+                type: string
+                examples:
+                  - TIMEOUT
+    AuditEntry:
+      type: object
+      required:
+        - id
+        - at
+        - actor
+        - action
+        - summary
+        - reason
+        - correlationId
+      properties:
+        id:
+          type: string
+          examples:
+            - aud_1
+        at:
+          $ref: "#/components/schemas/Timestamp"
+        actor:
+          type: string
+          examples:
+            - controller
+        action:
+          type: string
+          examples:
+            - TREASURE_APPROVED
+        summary:
+          type: string
+          examples:
+            - Treasure approved - The Saffron Vault
+        reason:
+          oneOf:
+            - type: string
+            - type: "null"
+        correlationId:
+          type: string
+    AgentHealth:
+      type: object
+      required:
+        - status
+        - latencyMs
+        - model
+      properties:
+        status:
+          $ref: "#/components/schemas/AgentStatus"
+        latencyMs:
+          type: integer
+          examples:
+            - 820
+        model:
+          type: string
+    EventCloseFailure:
+      type: object
+      required:
+        - stage
+        - code
+        - remaining
+      properties:
+        stage:
+          type: string
+          examples:
+            - STORAGE
+        code:
+          type: string
+          examples:
+            - DELETE_FAILED
+        remaining:
+          type: integer
+          examples:
+            - 3
+    ErrorCode:
+      type: string
+      description: Every error code in this contract.
+      enum:
+        - AGENTS_UNAVAILABLE
+        - CANDIDATE_NOT_READY
+        - CODE_ALREADY_CLAIMED
+        - CODE_INVALID
+        - CONFIRMATION_REQUIRED
+        - CSV_NOT_EXPORTED
+        - ENTRANCE_ID_IN_SESSION
+        - ENTRANCE_ID_REQUIRED
+        - ENTRANCE_ID_USED
+        - EVENT_CLOSED
+        - EVENT_CLOSING_FAILED
+        - GENERATION_IN_PROGRESS
+        - IDEMPOTENCY_KEY_REQUIRED
+        - INTERNAL_ERROR
+        - INVALID_CREDENTIALS
+        - INVALID_PHASE
+        - JOIN_TOKEN_EXPIRED
+        - NAMES_NOT_REVIEWED
+        - NAME_REQUIRED
+        - NOT_FOUND
+        - NO_ACTIVE_GAME
+        - NO_ACTIVE_SESSION
+        - NO_WINNER
+        - PLAYERS_NOT_JOINED
+        - PLAYERS_NOT_READY
+        - PLAYER_LOCKED
+        - PROMPT_EMPTY
+        - PROMPT_TOO_LONG
+        - REASON_REQUIRED
+        - RESULT_NOT_READY
+        - ROUND_EXPIRED
+        - ROUND_NOT_PLAYING
+        - SESSION_ALREADY_ACTIVE
+        - SESSION_CLOSED
+        - TOKEN_SUPERSEDED
+        - TOO_MANY_ATTEMPTS
+        - TREASURE_NOT_APPROVED
+        - UNAUTHENTICATED
+        - VALIDATION_FAILED
+  examples:
+    AGENTS_UNAVAILABLE:
+      summary: HTTP 503
+      value:
+        error:
+          code: AGENTS_UNAVAILABLE
+          message: Safe text for the user
+          correlationId: corr_example
+    CANDIDATE_NOT_READY:
+      summary: HTTP 409
+      value:
+        error:
+          code: CANDIDATE_NOT_READY
+          message: Safe text for the user
+          correlationId: corr_example
+    CODE_ALREADY_CLAIMED:
+      summary: HTTP 409
+      value:
+        error:
+          code: CODE_ALREADY_CLAIMED
+          message: Safe text for the user
+          correlationId: corr_example
+    CODE_INVALID:
+      summary: HTTP 404
+      value:
+        error:
+          code: CODE_INVALID
+          message: Safe text for the user
+          correlationId: corr_example
+    CONFIRMATION_REQUIRED:
+      summary: HTTP 422
+      value:
+        error:
+          code: CONFIRMATION_REQUIRED
+          message: Safe text for the user
+          correlationId: corr_example
+    CSV_NOT_EXPORTED:
+      summary: HTTP 409
+      value:
+        error:
+          code: CSV_NOT_EXPORTED
+          message: Safe text for the user
+          correlationId: corr_example
+    ENTRANCE_ID_IN_SESSION:
+      summary: HTTP 409
+      value:
+        error:
+          code: ENTRANCE_ID_IN_SESSION
+          message: Safe text for the user
+          correlationId: corr_example
+    ENTRANCE_ID_REQUIRED:
+      summary: HTTP 422
+      value:
+        error:
+          code: ENTRANCE_ID_REQUIRED
+          message: Safe text for the user
+          correlationId: corr_example
+    ENTRANCE_ID_USED:
+      summary: HTTP 409
+      value:
+        error:
+          code: ENTRANCE_ID_USED
+          message: Safe text for the user
+          correlationId: corr_example
+    EVENT_CLOSED:
+      summary: HTTP 409
+      value:
+        error:
+          code: EVENT_CLOSED
+          message: Safe text for the user
+          correlationId: corr_example
+    EVENT_CLOSING_FAILED:
+      summary: HTTP 409
+      value:
+        error:
+          code: EVENT_CLOSING_FAILED
+          message: Safe text for the user
+          correlationId: corr_example
+    GENERATION_IN_PROGRESS:
+      summary: HTTP 409
+      value:
+        error:
+          code: GENERATION_IN_PROGRESS
+          message: Safe text for the user
+          correlationId: corr_example
+    IDEMPOTENCY_KEY_REQUIRED:
+      summary: HTTP 400
+      value:
+        error:
+          code: IDEMPOTENCY_KEY_REQUIRED
+          message: Safe text for the user
+          correlationId: corr_example
+    INVALID_CREDENTIALS:
+      summary: HTTP 401
+      value:
+        error:
+          code: INVALID_CREDENTIALS
+          message: Safe text for the user
+          correlationId: corr_example
+    INVALID_PHASE:
+      summary: HTTP 409
+      value:
+        error:
+          code: INVALID_PHASE
+          message: Safe text for the user
+          correlationId: corr_example
+    JOIN_TOKEN_EXPIRED:
+      summary: HTTP 401
+      value:
+        error:
+          code: JOIN_TOKEN_EXPIRED
+          message: Safe text for the user
+          correlationId: corr_example
+    NAMES_NOT_REVIEWED:
+      summary: HTTP 409
+      value:
+        error:
+          code: NAMES_NOT_REVIEWED
+          message: Safe text for the user
+          correlationId: corr_example
+    NAME_REQUIRED:
+      summary: HTTP 422
+      value:
+        error:
+          code: NAME_REQUIRED
+          message: Safe text for the user
+          correlationId: corr_example
+    NOT_FOUND:
+      summary: HTTP 404
+      value:
+        error:
+          code: NOT_FOUND
+          message: Safe text for the user
+          correlationId: corr_example
+    NO_ACTIVE_GAME:
+      summary: HTTP 404
+      value:
+        error:
+          code: NO_ACTIVE_GAME
+          message: Safe text for the user
+          correlationId: corr_example
+    NO_ACTIVE_SESSION:
+      summary: HTTP 409
+      value:
+        error:
+          code: NO_ACTIVE_SESSION
+          message: Safe text for the user
+          correlationId: corr_example
+    NO_WINNER:
+      summary: HTTP 409
+      value:
+        error:
+          code: NO_WINNER
+          message: Safe text for the user
+          correlationId: corr_example
+    PLAYERS_NOT_JOINED:
+      summary: HTTP 409
+      value:
+        error:
+          code: PLAYERS_NOT_JOINED
+          message: Safe text for the user
+          correlationId: corr_example
+    PLAYERS_NOT_READY:
+      summary: HTTP 409
+      value:
+        error:
+          code: PLAYERS_NOT_READY
+          message: Safe text for the user
+          correlationId: corr_example
+    PLAYER_LOCKED:
+      summary: HTTP 409
+      value:
+        error:
+          code: PLAYER_LOCKED
+          message: Safe text for the user
+          correlationId: corr_example
+    PROMPT_EMPTY:
+      summary: HTTP 422
+      value:
+        error:
+          code: PROMPT_EMPTY
+          message: Safe text for the user
+          correlationId: corr_example
+    PROMPT_TOO_LONG:
+      summary: HTTP 422
+      value:
+        error:
+          code: PROMPT_TOO_LONG
+          message: Safe text for the user
+          correlationId: corr_example
+    REASON_REQUIRED:
+      summary: HTTP 422
+      value:
+        error:
+          code: REASON_REQUIRED
+          message: Safe text for the user
+          correlationId: corr_example
+    RESULT_NOT_READY:
+      summary: HTTP 409
+      value:
+        error:
+          code: RESULT_NOT_READY
+          message: Safe text for the user
+          correlationId: corr_example
+    ROUND_EXPIRED:
+      summary: HTTP 409
+      value:
+        error:
+          code: ROUND_EXPIRED
+          message: Safe text for the user
+          correlationId: corr_example
+    ROUND_NOT_PLAYING:
+      summary: HTTP 409
+      value:
+        error:
+          code: ROUND_NOT_PLAYING
+          message: Safe text for the user
+          correlationId: corr_example
+    SESSION_ALREADY_ACTIVE:
+      summary: HTTP 409
+      value:
+        error:
+          code: SESSION_ALREADY_ACTIVE
+          message: Safe text for the user
+          correlationId: corr_example
+    SESSION_CLOSED:
+      summary: HTTP 401
+      value:
+        error:
+          code: SESSION_CLOSED
+          message: Safe text for the user
+          correlationId: corr_example
+    TOKEN_SUPERSEDED:
+      summary: HTTP 401
+      value:
+        error:
+          code: TOKEN_SUPERSEDED
+          message: Safe text for the user
+          correlationId: corr_example
+    TOO_MANY_ATTEMPTS:
+      summary: HTTP 429
+      value:
+        error:
+          code: TOO_MANY_ATTEMPTS
+          message: Safe text for the user
+          correlationId: corr_example
+    TREASURE_NOT_APPROVED:
+      summary: HTTP 409
+      value:
+        error:
+          code: TREASURE_NOT_APPROVED
+          message: Safe text for the user
+          correlationId: corr_example
+    UNAUTHENTICATED:
+      summary: HTTP 401
+      value:
+        error:
+          code: UNAUTHENTICATED
+          message: Safe text for the user
+          correlationId: corr_example
+    VALIDATION_FAILED:
+      summary: HTTP 422
+      value:
+        error:
+          code: VALIDATION_FAILED
+          message: Safe text for the user
+          correlationId: corr_example

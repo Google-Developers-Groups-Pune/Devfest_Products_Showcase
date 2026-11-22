@@ -1,0 +1,950 @@
+# Prompt Heist socket events (AsyncAPI 3.0)
+# Contract for BE-02. Keep in sync with the story files.
+
+asyncapi: 3.0.0
+info:
+  title: Prompt Heist realtime events
+  version: 0.2.0
+  description: >-
+    Socket.IO events for the Prompt Heist game (BE-02). All 23 events in the STORIES.md index, with payloads from the
+    story files.
+
+    Each message names its owner story in `x-owner`. Shared schemas come from `openapi.yaml`.
+
+
+    Rules (shared contract and BE-07):
+
+    - Namespaces `/controller`, `/player`, `/display` on the API host. Token in the handshake: `auth: { token }`.
+    `/display` needs none.
+
+    - Superseded tokens are refused at handshake.
+
+    - Sockets only send from server to client. Clients cannot emit on `/display`, and nothing that changes state
+    anywhere.
+
+    - Each player has a private room. `prompt:*` events go only there.
+
+    - After any reconnect, call the hydrate endpoint (APIs 5, 23, 27).
+
+
+    `player:joined` has two versions: the Controller gets names, full names and entrance IDs; players and the display
+    get the count only.
+servers:
+  api:
+    host: "{apiHost}"
+    protocol: socket.io
+    description: The API host. The domain is config and can change.
+    variables:
+      apiHost:
+        description: API host and port, for example the Cloud Run domain.
+  replay:
+    host: localhost:4010
+    protocol: socket.io
+    description: >-
+      Local replay server (`npm run mock:game`). Plays the scripted game in `mock/replay/game.yaml` on these
+      namespaces and forwards REST to the Prism mock, so the app uses one address for both.
+channels:
+  controller:
+    address: /controller
+    title: Controller namespace
+    description: Requires `controllerToken` in `auth.token`.
+    messages:
+      phaseChanged:
+        $ref: "#/components/messages/phaseChanged"
+      sessionOpened:
+        $ref: "#/components/messages/sessionOpened"
+      sessionClosed:
+        $ref: "#/components/messages/sessionClosed"
+      playerJoinedController:
+        $ref: "#/components/messages/playerJoinedController"
+      playerConnection:
+        $ref: "#/components/messages/playerConnection"
+      treasureReady:
+        $ref: "#/components/messages/treasureReady"
+      treasureFailed:
+        $ref: "#/components/messages/treasureFailed"
+      roundStarted:
+        $ref: "#/components/messages/roundStarted"
+      timerSync:
+        $ref: "#/components/messages/timerSync"
+      feedUpdate:
+        $ref: "#/components/messages/feedUpdate"
+      playerUnlocked:
+        $ref: "#/components/messages/playerUnlocked"
+      monitorStats:
+        $ref: "#/components/messages/monitorStats"
+      roundEnded:
+        $ref: "#/components/messages/roundEnded"
+      resultProvisional:
+        $ref: "#/components/messages/resultProvisional"
+      resultConfirmed:
+        $ref: "#/components/messages/resultConfirmed"
+      roundDiscarded:
+        $ref: "#/components/messages/roundDiscarded"
+      eventStatus:
+        $ref: "#/components/messages/eventStatus"
+  controllerOldSocket:
+    address: /controller
+    title: Controller namespace, the replaced socket only
+    description: Only the previous Controller socket, when a new login ends it (D29).
+    messages:
+      controllerKicked:
+        $ref: "#/components/messages/controllerKicked"
+  player:
+    address: /player
+    title: Player namespace, every player
+    description: Requires `playerToken` in `auth.token`.
+    messages:
+      phaseChanged:
+        $ref: "#/components/messages/phaseChanged"
+      sessionClosed:
+        $ref: "#/components/messages/sessionClosed"
+      playerJoinedPublic:
+        $ref: "#/components/messages/playerJoinedPublic"
+      playersRevealed:
+        $ref: "#/components/messages/playersRevealed"
+      playerConnection:
+        $ref: "#/components/messages/playerConnection"
+      roundStarted:
+        $ref: "#/components/messages/roundStarted"
+      timerSync:
+        $ref: "#/components/messages/timerSync"
+      playerUnlocked:
+        $ref: "#/components/messages/playerUnlocked"
+      roundEnded:
+        $ref: "#/components/messages/roundEnded"
+      resultConfirmed:
+        $ref: "#/components/messages/resultConfirmed"
+      roundDiscarded:
+        $ref: "#/components/messages/roundDiscarded"
+  playerPrivate:
+    address: /player
+    title: Player namespace, private room of one player
+    description: Only the player who submitted the prompt. Player A must never receive player B's `prompt:*` events.
+    messages:
+      promptScored:
+        $ref: "#/components/messages/promptScored"
+      promptBlocked:
+        $ref: "#/components/messages/promptBlocked"
+      promptFailed:
+        $ref: "#/components/messages/promptFailed"
+  playerOldSocket:
+    address: /player
+    title: Player namespace, the replaced socket only
+    description: Only a player's previous socket, when they rejoin on another device.
+    messages:
+      playerKicked:
+        $ref: "#/components/messages/playerKicked"
+  display:
+    address: /display
+    title: Display (audience big screen) namespace
+    description: No token. Clients cannot emit anything here.
+    messages:
+      phaseChanged:
+        $ref: "#/components/messages/phaseChanged"
+      sessionOpened:
+        $ref: "#/components/messages/sessionOpened"
+      sessionClosed:
+        $ref: "#/components/messages/sessionClosed"
+      playerJoinedPublic:
+        $ref: "#/components/messages/playerJoinedPublic"
+      playersRevealed:
+        $ref: "#/components/messages/playersRevealed"
+      playerConnection:
+        $ref: "#/components/messages/playerConnection"
+      roundStarted:
+        $ref: "#/components/messages/roundStarted"
+      timerSync:
+        $ref: "#/components/messages/timerSync"
+      feedUpdate:
+        $ref: "#/components/messages/feedUpdate"
+      playerUnlocked:
+        $ref: "#/components/messages/playerUnlocked"
+      roundEnded:
+        $ref: "#/components/messages/roundEnded"
+      resultProvisional:
+        $ref: "#/components/messages/resultProvisional"
+      resultConfirmed:
+        $ref: "#/components/messages/resultConfirmed"
+      roundDiscarded:
+        $ref: "#/components/messages/roundDiscarded"
+operations:
+  sendToController:
+    action: send
+    title: Server sends to the Controller
+    channel:
+      $ref: "#/channels/controller"
+    security:
+      - $ref: "#/components/securitySchemes/controllerToken"
+    messages:
+      - $ref: "#/channels/controller/messages/phaseChanged"
+      - $ref: "#/channels/controller/messages/sessionOpened"
+      - $ref: "#/channels/controller/messages/sessionClosed"
+      - $ref: "#/channels/controller/messages/playerJoinedController"
+      - $ref: "#/channels/controller/messages/playerConnection"
+      - $ref: "#/channels/controller/messages/treasureReady"
+      - $ref: "#/channels/controller/messages/treasureFailed"
+      - $ref: "#/channels/controller/messages/roundStarted"
+      - $ref: "#/channels/controller/messages/timerSync"
+      - $ref: "#/channels/controller/messages/feedUpdate"
+      - $ref: "#/channels/controller/messages/playerUnlocked"
+      - $ref: "#/channels/controller/messages/monitorStats"
+      - $ref: "#/channels/controller/messages/roundEnded"
+      - $ref: "#/channels/controller/messages/resultProvisional"
+      - $ref: "#/channels/controller/messages/resultConfirmed"
+      - $ref: "#/channels/controller/messages/roundDiscarded"
+      - $ref: "#/channels/controller/messages/eventStatus"
+  sendToOldControllerSocket:
+    action: send
+    title: Server tells the replaced Controller socket it was ended
+    channel:
+      $ref: "#/channels/controllerOldSocket"
+    security:
+      - $ref: "#/components/securitySchemes/controllerToken"
+    messages:
+      - $ref: "#/channels/controllerOldSocket/messages/controllerKicked"
+  sendToAllPlayers:
+    action: send
+    title: Server sends to every player
+    channel:
+      $ref: "#/channels/player"
+    security:
+      - $ref: "#/components/securitySchemes/playerToken"
+    messages:
+      - $ref: "#/channels/player/messages/phaseChanged"
+      - $ref: "#/channels/player/messages/sessionClosed"
+      - $ref: "#/channels/player/messages/playerJoinedPublic"
+      - $ref: "#/channels/player/messages/playersRevealed"
+      - $ref: "#/channels/player/messages/playerConnection"
+      - $ref: "#/channels/player/messages/roundStarted"
+      - $ref: "#/channels/player/messages/timerSync"
+      - $ref: "#/channels/player/messages/playerUnlocked"
+      - $ref: "#/channels/player/messages/roundEnded"
+      - $ref: "#/channels/player/messages/resultConfirmed"
+      - $ref: "#/channels/player/messages/roundDiscarded"
+  sendToOnePlayer:
+    action: send
+    title: Server sends to one player's private room
+    channel:
+      $ref: "#/channels/playerPrivate"
+    security:
+      - $ref: "#/components/securitySchemes/playerToken"
+    messages:
+      - $ref: "#/channels/playerPrivate/messages/promptScored"
+      - $ref: "#/channels/playerPrivate/messages/promptBlocked"
+      - $ref: "#/channels/playerPrivate/messages/promptFailed"
+  sendToOldPlayerSocket:
+    action: send
+    title: Server tells a player's replaced socket it was ended
+    channel:
+      $ref: "#/channels/playerOldSocket"
+    security:
+      - $ref: "#/components/securitySchemes/playerToken"
+    messages:
+      - $ref: "#/channels/playerOldSocket/messages/playerKicked"
+  sendToDisplay:
+    action: send
+    title: Server sends to the audience screen
+    channel:
+      $ref: "#/channels/display"
+    messages:
+      - $ref: "#/channels/display/messages/phaseChanged"
+      - $ref: "#/channels/display/messages/sessionOpened"
+      - $ref: "#/channels/display/messages/sessionClosed"
+      - $ref: "#/channels/display/messages/playerJoinedPublic"
+      - $ref: "#/channels/display/messages/playersRevealed"
+      - $ref: "#/channels/display/messages/playerConnection"
+      - $ref: "#/channels/display/messages/roundStarted"
+      - $ref: "#/channels/display/messages/timerSync"
+      - $ref: "#/channels/display/messages/feedUpdate"
+      - $ref: "#/channels/display/messages/playerUnlocked"
+      - $ref: "#/channels/display/messages/roundEnded"
+      - $ref: "#/channels/display/messages/resultProvisional"
+      - $ref: "#/channels/display/messages/resultConfirmed"
+      - $ref: "#/channels/display/messages/roundDiscarded"
+components:
+  securitySchemes:
+    controllerToken:
+      type: http
+      scheme: bearer
+      description: "`controllerToken` in the Socket.IO handshake as `auth.token`."
+    playerToken:
+      type: http
+      scheme: bearer
+      description: "`playerToken` in the Socket.IO handshake as `auth.token`. Superseded tokens are refused."
+  schemas:
+    ControllerPlayerListItem:
+      allOf:
+        - $ref: ./openapi.yaml#/components/schemas/PublicPlayer
+        - type: object
+          required:
+            - fullName
+            - entranceId
+          properties:
+            fullName:
+              type: string
+              examples:
+                - Aman Sharma
+            entranceId:
+              type: string
+              examples:
+                - DF-2026-0007
+      description: Controller only. Public list entry plus fullName and entranceId.
+  messages:
+    phaseChanged:
+      name: phase:changed
+      title: Session phase changed
+      summary: "Audience: all."
+      x-owner:
+        story: BE-20
+        engineer: Shravani
+      payload:
+        type: object
+        required:
+          - sessionId
+          - phase
+          - previousPhase
+          - at
+        properties:
+          sessionId:
+            type: string
+            examples:
+              - ses_01
+          phase:
+            $ref: ./openapi.yaml#/components/schemas/Phase
+          previousPhase:
+            $ref: ./openapi.yaml#/components/schemas/Phase
+          at:
+            $ref: ./openapi.yaml#/components/schemas/Timestamp
+      examples:
+        - payload:
+            sessionId: ses_01
+            phase: READY
+            previousPhase: TREASURE_REVIEW
+            at: "2026-12-05T10:00:00.000Z"
+    sessionOpened:
+      name: session:opened
+      title: Session opened
+      summary: "Audience: display, controller."
+      x-owner:
+        story: BE-08
+        engineer: Asmita
+      payload:
+        type: object
+        required:
+          - sessionId
+          - capacity
+          - roundDurationSeconds
+        properties:
+          sessionId:
+            type: string
+            examples:
+              - ses_02
+          capacity:
+            type: integer
+            examples:
+              - 5
+          roundDurationSeconds:
+            type: integer
+            examples:
+              - 90
+      examples:
+        - payload:
+            sessionId: ses_02
+            capacity: 5
+            roundDurationSeconds: 90
+    sessionClosed:
+      name: session:closed
+      title: Session closed
+      summary: "Audience: all. Phones keep the final result until this event, then clear (D30)."
+      x-owner:
+        story: BE-36
+        engineer: Asmita
+      payload:
+        type: object
+        required:
+          - sessionId
+          - nextSessionOpened
+        properties:
+          sessionId:
+            type: string
+            examples:
+              - ses_01
+          nextSessionOpened:
+            type: boolean
+      examples:
+        - payload:
+            sessionId: ses_01
+            nextSessionOpened: true
+    playerJoinedController:
+      name: player:joined
+      title: Player joined (Controller version)
+      summary: "Audience: controller. Includes fullName and entranceId per player."
+      x-owner:
+        story: BE-11
+        engineer: Asmita
+      payload:
+        type: object
+        required:
+          - joinedCount
+          - capacity
+          - players
+        properties:
+          joinedCount:
+            type: integer
+            examples:
+              - 3
+          capacity:
+            type: integer
+            examples:
+              - 5
+          players:
+            type: array
+            items:
+              $ref: "#/components/schemas/ControllerPlayerListItem"
+            description: The whole list, because a collision can change an earlier player's label.
+    playerJoinedPublic:
+      name: player:joined
+      title: Player joined (public version)
+      summary: "Audience: players, display. Count only, no names until `players:revealed` (D16)."
+      x-owner:
+        story: BE-11
+        engineer: Asmita
+      payload:
+        type: object
+        required:
+          - joinedCount
+          - capacity
+        properties:
+          joinedCount:
+            type: integer
+            examples:
+              - 3
+          capacity:
+            type: integer
+            examples:
+              - 5
+      examples:
+        - payload:
+            joinedCount: 3
+            capacity: 5
+    playersRevealed:
+      name: players:revealed
+      title: All names approved
+      summary: "Audience: display, players. Sent once, when the last name is approved."
+      x-owner:
+        story: BE-39
+        engineer: Shreya
+      payload:
+        type: object
+        required:
+          - players
+        properties:
+          players:
+            type: array
+            items:
+              $ref: ./openapi.yaml#/components/schemas/PublicPlayer
+            description: Full public list with final names. Same items as API 23 `players`.
+    controllerKicked:
+      name: controller:kicked
+      title: Controller signed in elsewhere
+      summary: "Audience: old controller socket only (D29)."
+      x-owner:
+        story: BE-05
+        engineer: Asmita
+      payload:
+        type: object
+        required:
+          - reason
+        properties:
+          reason:
+            const: SIGNED_IN_ELSEWHERE
+      examples:
+        - payload:
+            reason: SIGNED_IN_ELSEWHERE
+    playerKicked:
+      name: player:kicked
+      title: Player rejoined on another device
+      summary: "Audience: old player socket only."
+      x-owner:
+        story: BE-12
+        engineer: Asmita
+      payload:
+        type: object
+        required:
+          - reason
+        properties:
+          reason:
+            const: REJOINED_ON_ANOTHER_DEVICE
+      examples:
+        - payload:
+            reason: REJOINED_ON_ANOTHER_DEVICE
+    playerConnection:
+      name: player:connection
+      title: Player connection changed
+      summary: "Audience: all."
+      x-owner:
+        story: BE-07
+        engineer: Shravani
+      payload:
+        type: object
+        required:
+          - slotNumber
+          - label
+          - connection
+        properties:
+          slotNumber:
+            $ref: ./openapi.yaml#/components/schemas/SlotNumber
+          label:
+            $ref: ./openapi.yaml#/components/schemas/Label
+          connection:
+            $ref: ./openapi.yaml#/components/schemas/Connection
+      examples:
+        - payload:
+            slotNumber: 2
+            label: Priya
+            connection: DISCONNECTED
+    treasureReady:
+      name: treasure:ready
+      title: Treasure candidate ready for review
+      summary: "Audience: controller only."
+      x-owner:
+        story: BE-19
+        engineer: Shreya
+      payload:
+        type: object
+        required:
+          - candidateId
+          - title
+          - backstory
+          - lockObjective
+          - imageUrl
+          - filterPassed
+          - rubric
+        properties:
+          candidateId:
+            type: string
+            examples:
+              - cnd_1
+          title:
+            type: string
+          backstory:
+            type: string
+          lockObjective:
+            type: string
+          imageUrl:
+            type: string
+            format: uri
+            description: 15-minute signed URL.
+          filterPassed:
+            type: boolean
+          rubric:
+            $ref: ./openapi.yaml#/components/schemas/Rubric
+      examples:
+        - payload:
+            candidateId: cnd_1
+            title: The Saffron Vault
+            backstory: ...
+            lockObjective: ...
+            imageUrl: https://storage.googleapis.com/...
+            filterPassed: true
+            rubric:
+              version: v1
+              scoringCriteria:
+                - Requests a poem
+                - Exactly three lines
+    treasureFailed:
+      name: treasure:failed
+      title: Treasure generation failed
+      summary: "Audience: controller only."
+      x-owner:
+        story: BE-19
+        engineer: Shreya
+      payload:
+        type: object
+        required:
+          - candidateId
+          - stage
+          - retryable
+        properties:
+          candidateId:
+            type: string
+            examples:
+              - cnd_1
+          stage:
+            type: string
+            enum:
+              - TEXT
+              - FILTER
+              - IMAGE
+          retryable:
+            type: boolean
+      examples:
+        - payload:
+            candidateId: cnd_1
+            stage: IMAGE
+            retryable: true
+    roundStarted:
+      name: round:started
+      title: Round started
+      summary: "Audience: all. Treasure card with a 4-hour image URL, never the rubric."
+      x-owner:
+        story: BE-20
+        engineer: Shravani
+      payload:
+        type: object
+        required:
+          - roundId
+          - roundNumber
+          - durationSeconds
+          - startedAt
+          - roundEndAt
+          - serverNow
+          - treasure
+        properties:
+          roundId:
+            type: string
+            examples:
+              - rnd_1
+          roundNumber:
+            type: integer
+            examples:
+              - 1
+          durationSeconds:
+            type: integer
+            examples:
+              - 90
+          startedAt:
+            $ref: ./openapi.yaml#/components/schemas/Timestamp
+          roundEndAt:
+            $ref: ./openapi.yaml#/components/schemas/Timestamp
+          serverNow:
+            $ref: ./openapi.yaml#/components/schemas/Timestamp
+          treasure:
+            $ref: ./openapi.yaml#/components/schemas/Treasure
+      examples:
+        - payload:
+            roundId: rnd_1
+            roundNumber: 1
+            durationSeconds: 90
+            startedAt: "2026-12-05T10:00:00.000Z"
+            roundEndAt: "2026-12-05T10:01:30.000Z"
+            serverNow: "2026-12-05T10:00:00.012Z"
+            treasure:
+              treasureId: cnd_1
+              title: The Golden Mango of Eternal Juiciness
+              backstory: Barnaby the flamingo guard hates his job and is severely underpaid in shrimp.
+              lockObjective: Convince Barnaby the Flamingo Guard to unlock the Golden Mango.
+              imageUrl: https://storage.example.com/treasures/cnd_1.png?signature=abc
+    timerSync:
+      name: timer:sync
+      title: Timer sync
+      summary: "Audience: all. Every 3 seconds while PLAYING."
+      x-owner:
+        story: BE-07
+        engineer: Shravani
+      payload:
+        type: object
+        required:
+          - roundId
+          - roundEndAt
+          - serverNow
+        properties:
+          roundId:
+            type: string
+            examples:
+              - rnd_1
+          roundEndAt:
+            $ref: ./openapi.yaml#/components/schemas/Timestamp
+          serverNow:
+            $ref: ./openapi.yaml#/components/schemas/Timestamp
+      examples:
+        - payload:
+            roundId: rnd_1
+            roundEndAt: "2026-12-05T10:01:30.000Z"
+            serverNow: "2026-12-05T10:00:03.001Z"
+    promptScored:
+      name: prompt:scored
+      title: Prompt scored
+      summary: "Audience: that player only (private room)."
+      x-owner:
+        story: BE-22
+        engineer: Shravani
+      payload:
+        type: object
+        required:
+          - promptId
+          - score
+          - feedback
+          - bestScore
+        properties:
+          promptId:
+            type: string
+            examples:
+              - prm_1
+          score:
+            $ref: ./openapi.yaml#/components/schemas/Score
+          feedback:
+            type: string
+            description: playerFeedback from the Guard. Never quotes the rubric.
+          bestScore:
+            $ref: ./openapi.yaml#/components/schemas/Score
+      examples:
+        - payload:
+            promptId: prm_1
+            score: 45
+            feedback: A bribe is a start, but what does this guard actually want?
+            bestScore: 45
+    promptBlocked:
+      name: prompt:blocked
+      title: Prompt blocked
+      summary: "Audience: that player only (private room). No score, no feed, no emoji."
+      x-owner:
+        story: BE-22
+        engineer: Shravani
+      payload:
+        type: object
+        required:
+          - promptId
+          - message
+        properties:
+          promptId:
+            type: string
+            examples:
+              - prm_2
+          message:
+            type: string
+      examples:
+        - payload:
+            promptId: prm_2
+            message: That prompt cannot be displayed. Try a different game-focused prompt.
+    promptFailed:
+      name: prompt:failed
+      title: Prompt could not be scored
+      summary: "Audience: that player only (private room)."
+      x-owner:
+        story: BE-22
+        engineer: Shravani
+      payload:
+        type: object
+        required:
+          - promptId
+          - message
+          - canRetry
+        properties:
+          promptId:
+            type: string
+            examples:
+              - prm_3
+          message:
+            type: string
+          canRetry:
+            type: boolean
+      examples:
+        - payload:
+            promptId: prm_3
+            message: We could not score that one. Please try again.
+            canRetry: true
+    feedUpdate:
+      name: feed:update
+      title: Scored prompt for the feed
+      summary: "Audience: display, controller. Never for blocked or pending prompts."
+      x-owner:
+        story: BE-22
+        engineer: Shravani
+      payload:
+        type: object
+        required:
+          - roundId
+          - sequence
+          - slotNumber
+          - label
+          - shape
+          - text
+          - score
+          - bestScore
+          - reaction
+          - expression
+        properties:
+          roundId:
+            type: string
+            examples:
+              - rnd_1
+          sequence:
+            type: integer
+            examples:
+              - 19
+          slotNumber:
+            $ref: ./openapi.yaml#/components/schemas/SlotNumber
+          label:
+            $ref: ./openapi.yaml#/components/schemas/Label
+          shape:
+            $ref: ./openapi.yaml#/components/schemas/Shape
+          text:
+            type: string
+            description: The approved prompt text, shown in full (D46).
+          score:
+            $ref: ./openapi.yaml#/components/schemas/Score
+          bestScore:
+            $ref: ./openapi.yaml#/components/schemas/Score
+          reaction:
+            type:
+              - string
+              - "null"
+            maxLength: 100
+            description: At most 100 characters (D39). null if the reaction failed (D49).
+          expression:
+            $ref: ./openapi.yaml#/components/schemas/Expression
+      examples:
+        - payload:
+            roundId: rnd_1
+            sequence: 19
+            slotNumber: 1
+            label: Isha
+            shape: BLUE_CIRCLE
+            text: Write a polite...
+            score: 100
+            bestScore: 100
+            reaction: Guard ne salute maara!
+            expression: SALUTE
+    playerUnlocked:
+      name: player:unlocked
+      title: A player scored 100
+      summary: "Audience: all."
+      x-owner:
+        story: BE-22
+        engineer: Shravani
+      payload:
+        type: object
+        required:
+          - slotNumber
+          - label
+          - unlocked
+        properties:
+          slotNumber:
+            $ref: ./openapi.yaml#/components/schemas/SlotNumber
+          label:
+            $ref: ./openapi.yaml#/components/schemas/Label
+          unlocked:
+            type: array
+            items:
+              $ref: ./openapi.yaml#/components/schemas/Label
+            description: Labels of every player who has unlocked so far.
+      examples:
+        - payload:
+            slotNumber: 1
+            label: Isha
+            unlocked:
+              - Isha
+    monitorStats:
+      name: monitor:stats
+      title: Live monitor stats
+      summary: "Audience: controller only. Emitted on every change."
+      x-owner:
+        story: BE-26
+        engineer: Shreya
+      payload:
+        $ref: ./openapi.yaml#/components/schemas/MonitorStats
+      examples:
+        - payload:
+            promptsScored: 4
+            unlockedCount: 0
+            blockedCount: 1
+            agentErrors: 0
+    roundEnded:
+      name: round:ended
+      title: Round ended
+      summary: "Audience: all. Phase becomes RESULT_PENDING."
+      x-owner:
+        story: BE-24
+        engineer: Shravani
+      payload:
+        type: object
+        required:
+          - roundId
+          - endedAt
+        properties:
+          roundId:
+            type: string
+            examples:
+              - rnd_1
+          endedAt:
+            $ref: ./openapi.yaml#/components/schemas/Timestamp
+      examples:
+        - payload:
+            roundId: rnd_1
+            endedAt: "2026-12-05T10:01:30.000Z"
+    resultProvisional:
+      name: result:provisional
+      title: Provisional winner
+      summary: "Audience: display, controller. Shown even though a discard may follow (D22)."
+      x-owner:
+        story: BE-24
+        engineer: Shravani
+      payload:
+        $ref: ./openapi.yaml#/components/schemas/ProvisionalResult
+      examples:
+        - payload:
+            roundId: rnd_1
+            winner:
+              slotNumber: 2
+              label: Dev
+              shape: RED_SQUARE
+              bestScore: 100
+    resultConfirmed:
+      name: result:confirmed
+      title: Result confirmed
+      summary: "Audience: all."
+      x-owner:
+        story: BE-25
+        engineer: Asmita
+      payload:
+        $ref: ./openapi.yaml#/components/schemas/ConfirmedResult
+    roundDiscarded:
+      name: round:discarded
+      title: Round discarded
+      summary: "Audience: all. The reason is never sent to players or the display."
+      x-owner:
+        story: BE-25
+        engineer: Asmita
+      payload:
+        type: object
+        required:
+          - sessionId
+          - roundId
+        properties:
+          sessionId:
+            type: string
+            examples:
+              - ses_01
+          roundId:
+            type: string
+            examples:
+              - rnd_1
+      examples:
+        - payload:
+            sessionId: ses_01
+            roundId: rnd_1
+    eventStatus:
+      name: event:status
+      title: Event status changed
+      summary: "Audience: controller only."
+      x-owner:
+        story: BE-29
+        engineer: Shreya
+      payload:
+        type: object
+        required:
+          - status
+          - failure
+        properties:
+          status:
+            $ref: ./openapi.yaml#/components/schemas/EventStatus
+          failure:
+            oneOf:
+              - $ref: ./openapi.yaml#/components/schemas/EventCloseFailure
+              - type: "null"
+      examples:
+        - payload:
+            status: CLOSED
+            failure: null
