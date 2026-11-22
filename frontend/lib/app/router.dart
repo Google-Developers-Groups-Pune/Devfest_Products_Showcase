@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/audience/audience_shell.dart' deferred as audience;
 import '../features/controller/controller_shell.dart' deferred as controller;
+import '../features/gallery/gallery_page.dart' deferred as gallery;
 import '../features/player/player_shell.dart';
 import 'deferred_page.dart';
 
@@ -11,6 +12,9 @@ abstract final class AppRoutes {
   static const String player = '/player';
   static const String controller = '/controller';
   static const String audience = '/audience';
+
+  /// Widget gallery for design review (FE-26). Deferred, so phones never load it.
+  static const String gallery = '/gallery';
 }
 
 /// One router per [ProviderScope], so tests get a fresh one and guards
@@ -37,6 +41,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => DeferredPage(
           loadLibrary: audience.loadLibrary,
           builder: (_) => audience.AudienceShell(),
+        ),
+      ),
+      GoRoute(
+        path: AppRoutes.gallery,
+        builder: (_, _) => DeferredPage(
+          loadLibrary: gallery.loadLibrary,
+          builder: (_) => gallery.GalleryPage(),
         ),
       ),
     ],

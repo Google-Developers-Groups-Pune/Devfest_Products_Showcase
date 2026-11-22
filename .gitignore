@@ -18,3 +18,6 @@ firestore-debug.log
 .idea/
 
 # Flutter has its own rules in frontend/.gitignore
+
+# Playwright MCP screenshots
+.playwright-mcp/

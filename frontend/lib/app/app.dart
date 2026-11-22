@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../core/theme/heist_theme.dart';
 import 'router.dart';
 
 class PromptHeistApp extends ConsumerWidget {
@@ -8,10 +9,11 @@ class PromptHeistApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Theme (Google logo palette, dark background) comes from FE-26.
     return MaterialApp.router(
       title: 'Prompt Heist',
       debugShowCheckedModeBanner: false,
+      theme: buildHeistTheme(),
+      themeMode: ThemeMode.dark,
       routerConfig: ref.watch(routerProvider),
     );
   }
