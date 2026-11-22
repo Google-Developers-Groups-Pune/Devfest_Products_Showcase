@@ -8,6 +8,8 @@ import '../../core/mock/mock_controller.dart';
 import '../../core/widgets/widgets.dart';
 import 'controller_auth.dart';
 import 'controller_state.dart';
+import 'panels/event_day_panel.dart';
+import 'panels/event_status_panel.dart';
 import 'panels/live_panel.dart';
 import 'panels/players_panel.dart';
 import 'panels/result_panels.dart';
@@ -34,7 +36,7 @@ class ControllerDashboard extends ConsumerWidget {
                 : LayoutBuilder(
                     builder: (context, box) {
                       final main = _MainPanel(state: s);
-                      const side = <Widget>[PlayersPanel()];
+                      const side = [PlayersPanel(), EventDayPanel()];
                       if (box.maxWidth < 980) {
                         return ListView(
                           padding: const EdgeInsets.all(16),
@@ -92,6 +94,7 @@ class _MainPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!state.eventDay.open) return EventStatusPanel(state: state);
     return switch (state.phase) {
       'JOINING' => JoiningPanel(state: state),
       'TREASURE_REVIEW' => TreasurePanel(state: state),
