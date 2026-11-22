@@ -4,7 +4,7 @@
 openapi: 3.1.0
 info:
   title: Prompt Heist API
-  version: 0.2.0
+  version: 0.3.0
   summary: REST contract for the Prompt Heist game (BE-02).
   license:
     name: MIT
@@ -30,7 +30,16 @@ info:
 
     - While event closing has failed, every other Controller write returns `409 EVENT_CLOSING_FAILED` (BE-29).
 
-    - Any endpoint can return `500 INTERNAL_ERROR` for an unexpected server failure.
+    - Any endpoint can return `500 INTERNAL` for an unexpected server failure.
+
+    - Routes that take a JSON body return `400 BAD_REQUEST` when the body cannot be read and `413 PAYLOAD_TOO_LARGE`
+    when it is too large.
+
+    - Player routes: `401 UNAUTHENTICATED` (token missing, invalid or expired) and `401 SESSION_CLOSED` clear the
+    phone and return to the booth code screen. `401 TOKEN_SUPERSEDED` shows the kicked screen.
+
+    - Names stay hidden from phones and the audience until `players:revealed` (D16): the public player lists are empty
+    until then.
 
 
     Change rule: anyone changing this contract after Day 2 updates this file in the same PR and posts in the team
@@ -134,6 +143,18 @@ paths:
                 controller:
                   id: ctl_1
                   username: controller
+        "400":
+          description: "`BAD_REQUEST`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                BAD_REQUEST:
+                  $ref: "#/components/examples/BAD_REQUEST"
         "401":
           description: "`INVALID_CREDENTIALS`"
           headers:
@@ -146,6 +167,18 @@ paths:
               examples:
                 INVALID_CREDENTIALS:
                   $ref: "#/components/examples/INVALID_CREDENTIALS"
+        "413":
+          description: "`PAYLOAD_TOO_LARGE`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PAYLOAD_TOO_LARGE:
+                  $ref: "#/components/examples/PAYLOAD_TOO_LARGE"
         "429":
           description: "`TOO_MANY_ATTEMPTS`"
           headers:
@@ -305,6 +338,18 @@ paths:
                     shape: BLUE_CIRCLE
                     slotState: UNJOINED
                     player: null
+        "400":
+          description: "`BAD_REQUEST`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                BAD_REQUEST:
+                  $ref: "#/components/examples/BAD_REQUEST"
         "401":
           description: "`UNAUTHENTICATED`"
           headers:
@@ -333,6 +378,18 @@ paths:
                   $ref: "#/components/examples/EVENT_CLOSED"
                 EVENT_CLOSING_FAILED:
                   $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+        "413":
+          description: "`PAYLOAD_TOO_LARGE`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PAYLOAD_TOO_LARGE:
+                  $ref: "#/components/examples/PAYLOAD_TOO_LARGE"
         "422":
           description: "`VALIDATION_FAILED`"
           headers:
@@ -508,6 +565,18 @@ paths:
                 session:
                   id: ses_01
                   roundDurationSeconds: 120
+        "400":
+          description: "`BAD_REQUEST`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                BAD_REQUEST:
+                  $ref: "#/components/examples/BAD_REQUEST"
         "401":
           description: "`UNAUTHENTICATED`"
           headers:
@@ -534,6 +603,18 @@ paths:
                   $ref: "#/components/examples/INVALID_PHASE"
                 EVENT_CLOSING_FAILED:
                   $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+        "413":
+          description: "`PAYLOAD_TOO_LARGE`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PAYLOAD_TOO_LARGE:
+                  $ref: "#/components/examples/PAYLOAD_TOO_LARGE"
         "422":
           description: "`VALIDATION_FAILED`"
           headers:
@@ -1221,6 +1302,18 @@ paths:
                 session:
                   id: ses_01
                   phase: DISCARDED
+        "400":
+          description: "`BAD_REQUEST`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                BAD_REQUEST:
+                  $ref: "#/components/examples/BAD_REQUEST"
         "401":
           description: "`UNAUTHENTICATED`"
           headers:
@@ -1247,6 +1340,18 @@ paths:
                   $ref: "#/components/examples/INVALID_PHASE"
                 EVENT_CLOSING_FAILED:
                   $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+        "413":
+          description: "`PAYLOAD_TOO_LARGE`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PAYLOAD_TOO_LARGE:
+                  $ref: "#/components/examples/PAYLOAD_TOO_LARGE"
         "422":
           description: "`REASON_REQUIRED`"
           headers:
@@ -1369,6 +1474,18 @@ paths:
                       - CLOSING
               example:
                 status: CLOSING
+        "400":
+          description: "`BAD_REQUEST`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                BAD_REQUEST:
+                  $ref: "#/components/examples/BAD_REQUEST"
         "401":
           description: "`UNAUTHENTICATED`"
           headers:
@@ -1395,6 +1512,18 @@ paths:
                   $ref: "#/components/examples/CSV_NOT_EXPORTED"
                 EVENT_CLOSED:
                   $ref: "#/components/examples/EVENT_CLOSED"
+        "413":
+          description: "`PAYLOAD_TOO_LARGE`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PAYLOAD_TOO_LARGE:
+                  $ref: "#/components/examples/PAYLOAD_TOO_LARGE"
         "422":
           description: "`CONFIRMATION_REQUIRED`"
           headers:
@@ -1686,6 +1815,18 @@ paths:
                   slotNumber: 1
                   capacity: 5
                   shape: BLUE_CIRCLE
+        "400":
+          description: "`BAD_REQUEST`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                BAD_REQUEST:
+                  $ref: "#/components/examples/BAD_REQUEST"
         "404":
           description: "`CODE_INVALID`"
           headers:
@@ -1712,6 +1853,18 @@ paths:
                   $ref: "#/components/examples/CODE_ALREADY_CLAIMED"
                 NO_ACTIVE_SESSION:
                   $ref: "#/components/examples/NO_ACTIVE_SESSION"
+        "413":
+          description: "`PAYLOAD_TOO_LARGE`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PAYLOAD_TOO_LARGE:
+                  $ref: "#/components/examples/PAYLOAD_TOO_LARGE"
   /api/player/join:
     post:
       operationId: joinSession
@@ -1779,6 +1932,18 @@ paths:
                   label: Aman
                   shape: BLUE_CIRCLE
                   state: LOBBY
+        "400":
+          description: "`BAD_REQUEST`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                BAD_REQUEST:
+                  $ref: "#/components/examples/BAD_REQUEST"
         "401":
           description: "`JOIN_TOKEN_EXPIRED`"
           headers:
@@ -1807,6 +1972,18 @@ paths:
                   $ref: "#/components/examples/ENTRANCE_ID_USED"
                 CODE_ALREADY_CLAIMED:
                   $ref: "#/components/examples/CODE_ALREADY_CLAIMED"
+        "413":
+          description: "`PAYLOAD_TOO_LARGE`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PAYLOAD_TOO_LARGE:
+                  $ref: "#/components/examples/PAYLOAD_TOO_LARGE"
         "422":
           description: "`NAME_REQUIRED` · `ENTRANCE_ID_REQUIRED`"
           headers:
@@ -1876,6 +2053,18 @@ paths:
                   label: Aman
                   shape: BLUE_CIRCLE
                   state: PLAYING
+        "400":
+          description: "`BAD_REQUEST`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                BAD_REQUEST:
+                  $ref: "#/components/examples/BAD_REQUEST"
         "404":
           description: "`NO_ACTIVE_GAME`"
           headers:
@@ -1888,6 +2077,18 @@ paths:
               examples:
                 NO_ACTIVE_GAME:
                   $ref: "#/components/examples/NO_ACTIVE_GAME"
+        "413":
+          description: "`PAYLOAD_TOO_LARGE`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PAYLOAD_TOO_LARGE:
+                  $ref: "#/components/examples/PAYLOAD_TOO_LARGE"
         "429":
           description: "`TOO_MANY_ATTEMPTS`"
           headers:
@@ -1909,8 +2110,8 @@ paths:
 
         `players` is empty until every name is approved. Other players' `bestScore` is not included.
 
-        `401 TOKEN_SUPERSEDED`: show the kicked screen. `401 SESSION_CLOSED`: clear the phone and return to the booth
-        code screen.
+        `401 UNAUTHENTICATED` or `401 SESSION_CLOSED`: clear the phone and return to the booth code screen.
+        `401 TOKEN_SUPERSEDED`: show the kicked screen.
       tags:
         - Player
         - Hydrate
@@ -1971,7 +2172,7 @@ paths:
                     receivedAt: "2026-12-05T10:00:12.000Z"
                 canSubmit: true
         "401":
-          description: "`TOKEN_SUPERSEDED` · `SESSION_CLOSED`"
+          description: "`UNAUTHENTICATED` · `TOKEN_SUPERSEDED` · `SESSION_CLOSED`"
           headers:
             X-Correlation-Id:
               $ref: "#/components/headers/X-Correlation-Id"
@@ -1980,6 +2181,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
               examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
                 TOKEN_SUPERSEDED:
                   $ref: "#/components/examples/TOKEN_SUPERSEDED"
                 SESSION_CLOSED:
@@ -2047,7 +2250,7 @@ paths:
                 sequence: 19
                 receivedAt: "2026-12-05T10:00:41.250Z"
         "400":
-          description: "`IDEMPOTENCY_KEY_REQUIRED`"
+          description: "`IDEMPOTENCY_KEY_REQUIRED` · `BAD_REQUEST`"
           headers:
             X-Correlation-Id:
               $ref: "#/components/headers/X-Correlation-Id"
@@ -2058,8 +2261,10 @@ paths:
               examples:
                 IDEMPOTENCY_KEY_REQUIRED:
                   $ref: "#/components/examples/IDEMPOTENCY_KEY_REQUIRED"
+                BAD_REQUEST:
+                  $ref: "#/components/examples/BAD_REQUEST"
         "401":
-          description: "`TOKEN_SUPERSEDED`"
+          description: "`UNAUTHENTICATED` · `TOKEN_SUPERSEDED`"
           headers:
             X-Correlation-Id:
               $ref: "#/components/headers/X-Correlation-Id"
@@ -2068,6 +2273,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
               examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
                 TOKEN_SUPERSEDED:
                   $ref: "#/components/examples/TOKEN_SUPERSEDED"
         "409":
@@ -2086,6 +2293,18 @@ paths:
                   $ref: "#/components/examples/ROUND_EXPIRED"
                 PLAYER_LOCKED:
                   $ref: "#/components/examples/PLAYER_LOCKED"
+        "413":
+          description: "`PAYLOAD_TOO_LARGE`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PAYLOAD_TOO_LARGE:
+                  $ref: "#/components/examples/PAYLOAD_TOO_LARGE"
         "422":
           description: "`PROMPT_EMPTY` · `PROMPT_TOO_LONG`"
           headers:
@@ -2173,7 +2392,7 @@ paths:
                 receivedAt: "2026-12-05T10:00:12.000Z"
                 sequence: 19
         "401":
-          description: "`TOKEN_SUPERSEDED` · `SESSION_CLOSED`"
+          description: "`UNAUTHENTICATED` · `TOKEN_SUPERSEDED` · `SESSION_CLOSED`"
           headers:
             X-Correlation-Id:
               $ref: "#/components/headers/X-Correlation-Id"
@@ -2182,6 +2401,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
               examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
                 TOKEN_SUPERSEDED:
                   $ref: "#/components/examples/TOKEN_SUPERSEDED"
                 SESSION_CLOSED:
@@ -2258,7 +2479,7 @@ paths:
                       backstory: A chai cup guarded by a grumpy kettle. (A simulated treasure.)
                       imageUrl: https://storage.example.com/treasures/cnd_9.png?signature=abc
         "401":
-          description: "`TOKEN_SUPERSEDED` · `SESSION_CLOSED`"
+          description: "`UNAUTHENTICATED` · `TOKEN_SUPERSEDED` · `SESSION_CLOSED`"
           headers:
             X-Correlation-Id:
               $ref: "#/components/headers/X-Correlation-Id"
@@ -2267,6 +2488,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
               examples:
+                UNAUTHENTICATED:
+                  $ref: "#/components/examples/UNAUTHENTICATED"
                 TOKEN_SUPERSEDED:
                   $ref: "#/components/examples/TOKEN_SUPERSEDED"
                 SESSION_CLOSED:
@@ -2338,12 +2561,16 @@ paths:
       operationId: closeSession
       summary: API 28 · Close or abandon a session
       description: >-
-        Closes the session without opening another. Used to abandon a session (from `JOINING`, `TREASURE_REVIEW`,
-        `READY`)
+        Closes the session without opening another. Two uses:
 
-        and by the End session button (from `RESULTS`). Abandoning releases entrance IDs (D31).
 
-        Emits `session:closed`, then revokes player tokens (D30).
+        - Abandon, from `JOINING`, `TREASURE_REVIEW` or `READY`: `reason` is required (D31), otherwise
+        `422 REASON_REQUIRED`. Releases entrance IDs, so those people can join a later session.
+
+        - End session, from `RESULTS`, for the last group of the day (D45): no `reason` needed.
+
+
+        Any other phase returns `409 INVALID_PHASE`. Emits `session:closed`, then revokes player tokens (D30).
       tags:
         - Controller
       x-api: 28
@@ -2372,7 +2599,7 @@ paths:
                   type: string
                   examples:
                     - Only 3 players turned up
-                  description: Required except from `RESULTS`.
+                  description: Required when abandoning (`JOINING`, `TREASURE_REVIEW`, `READY`). Not needed from `RESULTS`.
       responses:
         "200":
           description: Closed.
@@ -2404,6 +2631,18 @@ paths:
                 session:
                   id: ses_01
                   phase: CLOSED
+        "400":
+          description: "`BAD_REQUEST`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                BAD_REQUEST:
+                  $ref: "#/components/examples/BAD_REQUEST"
         "401":
           description: "`UNAUTHENTICATED`"
           headers:
@@ -2430,6 +2669,18 @@ paths:
                   $ref: "#/components/examples/INVALID_PHASE"
                 EVENT_CLOSING_FAILED:
                   $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+        "413":
+          description: "`PAYLOAD_TOO_LARGE`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PAYLOAD_TOO_LARGE:
+                  $ref: "#/components/examples/PAYLOAD_TOO_LARGE"
         "422":
           description: "`REASON_REQUIRED`"
           headers:
@@ -2629,6 +2880,18 @@ paths:
                   label: Aman
                   nameReview: APPROVED
                 allApproved: false
+        "400":
+          description: "`BAD_REQUEST`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                BAD_REQUEST:
+                  $ref: "#/components/examples/BAD_REQUEST"
         "401":
           description: "`UNAUTHENTICATED`"
           headers:
@@ -2667,6 +2930,18 @@ paths:
                   $ref: "#/components/examples/INVALID_PHASE"
                 EVENT_CLOSING_FAILED:
                   $ref: "#/components/examples/EVENT_CLOSING_FAILED"
+        "413":
+          description: "`PAYLOAD_TOO_LARGE`"
+          headers:
+            X-Correlation-Id:
+              $ref: "#/components/headers/X-Correlation-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              examples:
+                PAYLOAD_TOO_LARGE:
+                  $ref: "#/components/examples/PAYLOAD_TOO_LARGE"
         "422":
           description: "`NAME_REQUIRED`"
           headers:
@@ -3587,6 +3862,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PublicPlayer"
+          description: Empty until `players:revealed`, then every player at once (D16). Never contains unapproved names.
         treasure:
           oneOf:
             - $ref: "#/components/schemas/Treasure"
@@ -3760,6 +4036,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DisplayPlayer"
+          description: >-
+            Empty until `players:revealed`, then every player at once (D16). Before that the screen shows
+            `session.joinedCount` only.
         treasure:
           oneOf:
             - $ref: "#/components/schemas/Treasure"
@@ -3983,6 +4262,7 @@ components:
       description: Every error code in this contract.
       enum:
         - AGENTS_UNAVAILABLE
+        - BAD_REQUEST
         - CANDIDATE_NOT_READY
         - CODE_ALREADY_CLAIMED
         - CODE_INVALID
@@ -3995,7 +4275,7 @@ components:
         - EVENT_CLOSING_FAILED
         - GENERATION_IN_PROGRESS
         - IDEMPOTENCY_KEY_REQUIRED
-        - INTERNAL_ERROR
+        - INTERNAL
         - INVALID_CREDENTIALS
         - INVALID_PHASE
         - JOIN_TOKEN_EXPIRED
@@ -4005,6 +4285,7 @@ components:
         - NO_ACTIVE_GAME
         - NO_ACTIVE_SESSION
         - NO_WINNER
+        - PAYLOAD_TOO_LARGE
         - PLAYERS_NOT_JOINED
         - PLAYERS_NOT_READY
         - PLAYER_LOCKED
@@ -4027,6 +4308,13 @@ components:
       value:
         error:
           code: AGENTS_UNAVAILABLE
+          message: Safe text for the user
+          correlationId: corr_example
+    BAD_REQUEST:
+      summary: HTTP 400
+      value:
+        error:
+          code: BAD_REQUEST
           message: Safe text for the user
           correlationId: corr_example
     CANDIDATE_NOT_READY:
@@ -4174,6 +4462,13 @@ components:
       value:
         error:
           code: NO_WINNER
+          message: Safe text for the user
+          correlationId: corr_example
+    PAYLOAD_TOO_LARGE:
+      summary: HTTP 413
+      value:
+        error:
+          code: PAYLOAD_TOO_LARGE
           message: Safe text for the user
           correlationId: corr_example
     PLAYERS_NOT_JOINED:

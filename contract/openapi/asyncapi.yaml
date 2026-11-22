@@ -4,7 +4,7 @@
 asyncapi: 3.0.0
 info:
   title: Prompt Heist realtime events
-  version: 0.2.0
+  version: 0.3.0
   description: >-
     Socket.IO events for the Prompt Heist game (BE-02). All 23 events in the STORIES.md index, with payloads from the
     story files.
@@ -18,6 +18,13 @@ info:
     `/display` needs none.
 
     - Superseded tokens are refused at handshake.
+
+    - A refused handshake reaches the client as the Socket.IO `connect_error` event. `err.message` is the error code
+    and `err.data` is the REST error body, `{ "error": { "code", "message", "correlationId" } }`. The server refuses
+    with `next(err)` after setting both. The codes for each namespace are in its channel's `x-connect-error-codes`.
+    The client handles them as it does on REST. `/display` never refuses.
+
+    - Names stay hidden from phones and the audience until `players:revealed` (D16).
 
     - Sockets only send from server to client. Clients cannot emit on `/display`, and nothing that changes state
     anywhere.
@@ -47,7 +54,11 @@ channels:
   controller:
     address: /controller
     title: Controller namespace
-    description: Requires `controllerToken` in `auth.token`.
+    description: >-
+      Requires `controllerToken` in `auth.token`. A refused handshake gets `connect_error` with `UNAUTHENTICATED`:
+      token missing, invalid, expired, revoked, or ended by a newer login (D29), as on the Controller REST routes.
+    x-connect-error-codes:
+      - UNAUTHENTICATED
     messages:
       phaseChanged:
         $ref: "#/components/messages/phaseChanged"
@@ -93,7 +104,15 @@ channels:
   player:
     address: /player
     title: Player namespace, every player
-    description: Requires `playerToken` in `auth.token`.
+    description: >-
+      Requires `playerToken` in `auth.token`. A refused handshake gets `connect_error` with one of these codes, the
+      same as on the player REST routes: `UNAUTHENTICATED` (token missing, invalid or expired) and `SESSION_CLOSED`
+      clear the phone and return to the booth code screen; `TOKEN_SUPERSEDED` (rejoined on another device) shows the
+      kicked screen.
+    x-connect-error-codes:
+      - UNAUTHENTICATED
+      - TOKEN_SUPERSEDED
+      - SESSION_CLOSED
     messages:
       phaseChanged:
         $ref: "#/components/messages/phaseChanged"
@@ -496,13 +515,24 @@ components:
           slotNumber:
             $ref: ./openapi.yaml#/components/schemas/SlotNumber
           label:
-            $ref: ./openapi.yaml#/components/schemas/Label
+            oneOf:
+              - $ref: ./openapi.yaml#/components/schemas/Label
+              - type: "null"
+            description: >-
+              null until `players:revealed`, for every audience, so a disconnect in the lobby never shows a name early
+              (D16). Key on `slotNumber`.
           connection:
             $ref: ./openapi.yaml#/components/schemas/Connection
       examples:
-        - payload:
+        - name: afterReveal
+          payload:
             slotNumber: 2
             label: Priya
+            connection: DISCONNECTED
+        - name: beforeReveal
+          payload:
+            slotNumber: 2
+            label: null
             connection: DISCONNECTED
     treasureReady:
       name: treasure:ready
