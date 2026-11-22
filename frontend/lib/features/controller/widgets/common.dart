@@ -13,6 +13,9 @@ import '../../../core/widgets/widgets.dart';
   'RESULTS' => ('Results', Tone.success),
   'DISCARDED' => ('Discarded', Tone.neutral),
   'CLOSED' => ('Closed', Tone.neutral),
+  // Event day status, shown while the day is being closed (FE-17).
+  'CLOSING' => ('Closing', Tone.warning),
+  'CLOSING_FAILED' => ('Closing failed', Tone.danger),
   _ => (phase, Tone.neutral),
 };
 

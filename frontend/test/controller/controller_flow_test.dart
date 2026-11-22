@@ -129,6 +129,7 @@ void main() {
     await tester.tap(find.byKey(const Key('close-confirm')));
     await settle(tester);
     expect(find.text('Closing the event day…'), findsOneWidget);
+    expect(find.text('Closing'), findsOneWidget, reason: 'header chip shows the event status');
     now = now.add(const Duration(seconds: 3));
     MockController.tick();
     await settle(tester);

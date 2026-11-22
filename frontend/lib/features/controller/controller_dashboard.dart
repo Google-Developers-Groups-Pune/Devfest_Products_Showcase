@@ -115,7 +115,8 @@ class _Header extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.hc;
     final username = ref.watch(controllerAuthProvider.select((a) => a.username));
-    final (label, tone) = phaseLabel(state.eventDay.open ? state.phase : 'CLOSED');
+    // While the day is closing, the chip shows the event status, not the phase.
+    final (label, tone) = phaseLabel(state.eventDay.open ? state.phase : state.eventDay.status);
     final wide = MediaQuery.sizeOf(context).width >= 1000;
     final roundNumber = state.round?.roundNumber;
     return Container(
