@@ -10,6 +10,7 @@ import 'controller_auth.dart';
 import 'controller_state.dart';
 import 'panels/players_panel.dart';
 import 'panels/setup_panels.dart';
+import 'panels/treasure_panels.dart';
 import 'widgets/common.dart';
 
 /// The signed-in Controller dashboard: header, the main panel for the
@@ -91,6 +92,8 @@ class _MainPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (state.phase) {
       'JOINING' => JoiningPanel(state: state),
+      'TREASURE_REVIEW' => TreasurePanel(state: state),
+      'READY' => ReadyPanel(state: state),
       _ => SetupPanel(state: state),
     };
   }
