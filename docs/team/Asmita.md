@@ -206,7 +206,7 @@ Request:
     "joinedCount": 0, "createdAt": "..." },
   "slots": [ { "slotNumber": 1, "code": "29", "shape": "BLUE_CIRCLE", "slotState": "UNJOINED", "player": null } ] }
 ```
-Errors: `409 SESSION_ALREADY_ACTIVE` · `409 EVENT_CLOSED` · `422 VALIDATION_FAILED`
+Errors: `409 SESSION_ALREADY_ACTIVE` · `409 EVENT_CLOSED` · `422 VALIDATION_FAILED` · `409 EVENT_CLOSING_FAILED`
 
 **API 5 · `GET /api/controller/sessions/active`** · Auth: Controller
 
@@ -267,7 +267,7 @@ Request: `{ "roundDurationSeconds": 120 }`. Allowed in `JOINING`, `TREASURE_REVI
 
 200: `{ "session": { "id": "ses_01", "roundDurationSeconds": 120 } }`
 
-Errors: `409 INVALID_PHASE` · `422 VALIDATION_FAILED`
+Errors: `409 INVALID_PHASE` · `422 VALIDATION_FAILED` · `409 EVENT_CLOSING_FAILED`
 
 </details>
 
@@ -393,6 +393,7 @@ Errors: `404 NO_ACTIVE_GAME` · `429 TOO_MANY_ATTEMPTS` (10 per IP per minute)
 `player:connection` → all
 ```json
 { "slotNumber": 2, "label": "Priya", "connection": "DISCONNECTED" }
+// label is null until players:revealed, so a disconnect in the lobby never shows a name early (D16).
 ```
 
 </details>
@@ -439,7 +440,7 @@ Hydrate call, used on load and on every reconnect.
 ```
 `treasure` and `round` are null before the round starts. `players` is empty until every name is approved. Other players' `bestScore` is not included here.
 
-Errors: `401 TOKEN_SUPERSEDED` (show the kicked screen) · `401 SESSION_CLOSED` (clear the phone and return to the booth code screen)
+Errors: `401 UNAUTHENTICATED` (token missing, invalid or expired: clear the phone and return to the booth code screen) · `401 TOKEN_SUPERSEDED` (show the kicked screen) · `401 SESSION_CLOSED` (clear the phone and return to the booth code screen)
 
 **API 27 · `GET /api/display/state`** · Auth: none (public)
 
@@ -604,7 +605,7 @@ Safe to repeat: a second call returns the same result. Phase becomes `RESULTS`.
 
 200: `{ "result": { "status": "CONFIRMED", "roundNumber": 1, "confirmedAt": "..." }, "session": { "phase": "RESULTS" } }`
 
-Errors: `409 NO_WINNER` (must discard) · `409 INVALID_PHASE`
+Errors: `409 NO_WINNER` (must discard) · `409 INVALID_PHASE` · `409 EVENT_CLOSING_FAILED`
 
 **API 14 · `POST /api/controller/rounds/:id/discard`** · Auth: Controller
 
@@ -614,7 +615,7 @@ Ends the session with no winner. Phase becomes `DISCARDED`, which is final. Entr
 
 200: `{ "session": { "id": "ses_01", "phase": "DISCARDED" } }`
 
-Errors: `422 REASON_REQUIRED` · `409 INVALID_PHASE`
+Errors: `422 REASON_REQUIRED` · `409 INVALID_PHASE` · `409 EVENT_CLOSING_FAILED`
 
 </details>
 
@@ -666,7 +667,7 @@ Allowed from `JOINING`, `TREASURE_REVIEW` and `READY` (abandon), and from `RESUL
 
 200: `{ "session": { "id": "ses_01", "phase": "CLOSED" } }`
 
-Errors: `409 INVALID_PHASE`
+Errors: `409 INVALID_PHASE` · `422 REASON_REQUIRED` (abandon without a reason) · `409 EVENT_CLOSING_FAILED`
 
 **API 29 · `POST /api/controller/sessions/:id/next-group`** · Auth: Controller
 
@@ -683,7 +684,7 @@ No request body. Reuses the capacity and duration of the closed session.
   "session": { "id": "ses_02", "phase": "JOINING", "capacity": 5, "roundDurationSeconds": 90, "joinedCount": 0 },
   "slots": [ { "slotNumber": 1, "code": "41", "shape": "BLUE_CIRCLE", "slotState": "UNJOINED", "player": null } ] }
 ```
-Errors: `409 INVALID_PHASE` · `400 IDEMPOTENCY_KEY_REQUIRED`
+Errors: `409 INVALID_PHASE` · `400 IDEMPOTENCY_KEY_REQUIRED` · `409 EVENT_CLOSING_FAILED`
 
 </details>
 

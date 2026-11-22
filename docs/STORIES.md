@@ -50,7 +50,7 @@ Each engineer's file has their stories with acceptance criteria, API contract, s
 | D28 | Starting a round | All players must be **connected**, and **all five agents must be up**. |
 | D29 | Controller login | A new login ends the previous one. |
 | D30 | After the game | The final result stays on phones until the Controller starts the next session, then phones clear. |
-| D31 | Abandon | Needs a reason. Those people can join a later session. |
+| D31 | Abandon | Needs a reason. Those people can join a later session. Abandon is API 28 from `JOINING`, `TREASURE_REVIEW` or `READY`, and returns `422 REASON_REQUIRED` without a reason. The **End session** button also uses API 28, from `RESULTS` for the last group of the day (D45), and needs no reason. |
 | D32 | Treasure review | One reject action for the whole treasure. No "reviewed" or "auto-filtered" counters. |
 | D33 | Registration | Players enter their own details. |
 | D34 | Discard | **The session ends with no winner.** The same people can join a new session with new codes. There is no replay inside a session. This overrides PRD 7.7. |
@@ -60,7 +60,7 @@ Each engineer's file has their stories with acceptance criteria, API contract, s
 | D41 | Slow scoring | Results wait up to 60 seconds. No warning to the Controller. |
 | D42 | Fallback reactions | **None.** This overrides PRD 8.4. |
 | D43 | Story time chip | Removed. |
-| D44 | Close event day | Available at any time, with a confirmation dialog. Closing during play stops that round, and any unconfirmed result is lost. **A CSV must always be exported first**, covering every winner. With no winners, an empty CSV is still required. |
+| D44 | Close event day | Available at any time, with a confirmation dialog. Closing during play stops that round, and any unconfirmed result is lost. **A CSV must always be exported first**, covering every winner. With no winners, an empty CSV is still required. While closing has failed (`CLOSING_FAILED`), every other Controller game action returns `409 EVENT_CLOSING_FAILED` until closing succeeds (BE-29): APIs 4, 6–10, 13, 14 and 28–30. |
 | D45 | Next group | Reuses the last settings. An **End session** button is added for the last group. |
 | D46 | Prompts on the big screen | Shown in full, never cut off. |
 | D47 | Final ranking | All players shown on the big screen. |
@@ -283,7 +283,7 @@ New compared with `Backend_overview.pdf`: `session:opened`, `session:closed`, `t
 | `player:joined` | all |
 | `players:revealed` | audience, players |
 | `controller:kicked` | old controller socket only |
-| `player:connection` | all |
+| `player:connection` | all. `label` is null until `players:revealed` (D16) |
 | `player:kicked` | old player socket only |
 | `treasure:ready` | controller only |
 | `treasure:failed` | controller only |

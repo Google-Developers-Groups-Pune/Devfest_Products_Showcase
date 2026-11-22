@@ -236,7 +236,7 @@ Hydrate call, used on load and on every reconnect.
 ```
 `treasure` and `round` are null before the round starts. `players` is empty until every name is approved. Other players' `bestScore` is not included here.
 
-Errors: `401 TOKEN_SUPERSEDED` (show the kicked screen) · `401 SESSION_CLOSED` (clear the phone and return to the booth code screen)
+Errors: `401 UNAUTHENTICATED` (token missing, invalid or expired: clear the phone and return to the booth code screen) · `401 TOKEN_SUPERSEDED` (show the kicked screen) · `401 SESSION_CLOSED` (clear the phone and return to the booth code screen)
 
 </details>
 
@@ -259,6 +259,7 @@ Errors: `401 TOKEN_SUPERSEDED` (show the kicked screen) · `401 SESSION_CLOSED` 
 `player:connection` → all
 ```json
 { "slotNumber": 2, "label": "Priya", "connection": "DISCONNECTED" }
+// label is null until players:revealed, so a disconnect in the lobby never shows a name early (D16).
 ```
 
 `phase:changed` → all
@@ -324,7 +325,7 @@ Hydrate call, used on load and on every reconnect.
 ```
 `treasure` and `round` are null before the round starts. `players` is empty until every name is approved. Other players' `bestScore` is not included here.
 
-Errors: `401 TOKEN_SUPERSEDED` (show the kicked screen) · `401 SESSION_CLOSED` (clear the phone and return to the booth code screen)
+Errors: `401 UNAUTHENTICATED` (token missing, invalid or expired: clear the phone and return to the booth code screen) · `401 TOKEN_SUPERSEDED` (show the kicked screen) · `401 SESSION_CLOSED` (clear the phone and return to the booth code screen)
 
 </details>
 
@@ -396,7 +397,7 @@ Hydrate call, used on load and on every reconnect.
 ```
 `treasure` and `round` are null before the round starts. `players` is empty until every name is approved. Other players' `bestScore` is not included here.
 
-Errors: `401 TOKEN_SUPERSEDED` (show the kicked screen) · `401 SESSION_CLOSED` (clear the phone and return to the booth code screen)
+Errors: `401 UNAUTHENTICATED` (token missing, invalid or expired: clear the phone and return to the booth code screen) · `401 TOKEN_SUPERSEDED` (show the kicked screen) · `401 SESSION_CLOSED` (clear the phone and return to the booth code screen)
 
 </details>
 
@@ -627,6 +628,7 @@ What the crowd sees before the round.
 `player:connection` → all
 ```json
 { "slotNumber": 2, "label": "Priya", "connection": "DISCONNECTED" }
+// label is null until players:revealed, so a disconnect in the lobby never shows a name early (D16).
 ```
 
 </details>
