@@ -74,6 +74,7 @@ flutter:
   uses-material-design: true
 
   # Bundled, never fetched at runtime (booth Wi-Fi can't be trusted).
+  # All SIL OFL 1.1; the licences are beside the files in assets/fonts.
   fonts:
     - family: AppSans
       fonts:
@@ -83,11 +84,14 @@ flutter:
     - family: AppMono
       fonts:
         - asset: assets/fonts/JetBrainsMono-Regular.ttf
+    # Noto Color Emoji subset to faces and common reactions (156 KB, COLRv1
+    # only). The full font is 25 MB and every route downloads it at start-up.
+    # Emoji outside the subset use Flutter's own Noto fallback.
     - family: AppEmoji
       fonts:
         - asset: assets/fonts/NotoColorEmoji.ttf
     # FE-26: Google Sans and Google Sans Code for the Controller and gallery.
-    # SIL OFL 1.1 (licences beside the files), subset to Latin.
+    # Subset to Latin.
     - family: GoogleSans
       fonts:
         - asset: assets/fonts/GoogleSans.ttf
