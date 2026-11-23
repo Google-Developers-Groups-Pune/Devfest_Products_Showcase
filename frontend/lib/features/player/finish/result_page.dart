@@ -7,23 +7,13 @@ import '../../../core/api/token_store.dart';
 import '../../../core/widgets/widgets.dart';
 import '../battle/game_state.dart';
 import '../widgets/player_ui.dart';
+import '../../../core/ordinal.dart';
 
 /// GET /api/player/result. PENDING until the Controller confirms.
 final resultProvider = FutureProvider.autoDispose<Json>((ref) {
   ref.watch(tokenProvider);
   return ref.watch(playerApiProvider).result();
 });
-
-String ordinal(int n) {
-  final m100 = n % 100;
-  if (m100 >= 11 && m100 <= 13) return '${n}th';
-  return switch (n % 10) {
-    1 => '${n}st',
-    2 => '${n}nd',
-    3 => '${n}rd',
-    _ => '${n}th',
-  };
-}
 
 class ResultPage extends ConsumerStatefulWidget {
   const ResultPage({super.key});

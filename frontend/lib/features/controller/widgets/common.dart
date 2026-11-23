@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../../../core/widgets/widgets.dart';
+export '../../../core/ordinal.dart';
 
 /// Phase chip text and colour for the header.
 (String, Tone) phaseLabel(String phase) => switch (phase) {
@@ -44,11 +45,6 @@ String clockTime(DateTime? t) {
   final l = t.toLocal();
   String two(int n) => n.toString().padLeft(2, '0');
   return '${two(l.hour)}:${two(l.minute)}:${two(l.second)}';
-}
-
-String ordinal(int n) {
-  if (n % 100 >= 11 && n % 100 <= 13) return '${n}th';
-  return switch (n % 10) { 1 => '${n}st', 2 => '${n}nd', 3 => '${n}rd', _ => '${n}th' };
 }
 
 /// A small muted label above a control.
