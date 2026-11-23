@@ -321,7 +321,7 @@ class _JoinUrlPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     decoration: BoxDecoration(
-      color: const Color(0xFF1A73E8),
+      color: HeistColors.heroBlue,
       borderRadius: BorderRadius.circular(48),
     ),
     padding: const EdgeInsets.all(60),
@@ -359,7 +359,7 @@ class _JoinUrlPanel extends StatelessWidget {
                 style: const TextStyle(
                   fontFamily: 'AppMono',
                   fontSize: 60,
-                  color: Color(0xFF1A73E8),
+                  color: HeistColors.heroBlue,
                 ),
               ),
             ),

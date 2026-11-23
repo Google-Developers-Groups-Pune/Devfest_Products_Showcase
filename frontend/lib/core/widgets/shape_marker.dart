@@ -1,17 +1,17 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../theme/slot_shape.dart';
+
 class ShapeInfo {
   const ShapeInfo(this.name, this.color);
   final String name;
   final Color color;
 }
 
-const shapeInfo = <String, ShapeInfo>{
-  'BLUE_CIRCLE': ShapeInfo('blue circle', Color(0xFF4285F4)),
-  'RED_SQUARE': ShapeInfo('red square', Color(0xFFEA4335)),
-  'YELLOW_DIAMOND': ShapeInfo('yellow diamond', Color(0xFFFBBC05)),
-  'GREEN_PILL': ShapeInfo('green pill', Color(0xFF34A853)),
-  'GREEN_CIRCLE': ShapeInfo('green circle', Color(0xFF34A853)),
+/// Name and colour per API shape value, taken from [SlotShape] so the
+/// slot colours are defined once (Google logo colours).
+final shapeInfo = <String, ShapeInfo>{
+  for (final s in SlotShape.values) s.apiValue: ShapeInfo(s.description, s.color),
 };
 
 class ShapeMarker extends StatelessWidget {

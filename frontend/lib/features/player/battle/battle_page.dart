@@ -296,7 +296,7 @@ class _UnlockedView extends StatelessWidget {
                                 child: const Icon(
                                   Icons.lock_open_rounded,
                                   size: 52,
-                                  color: Color(0xFF7A4F00),
+                                  color: HeistColors.onYellowIcon,
                                 ),
                               ),
                             ),
@@ -327,7 +327,7 @@ class _UnlockedView extends StatelessWidget {
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: Color(0xFF412402),
+                                  color: HeistColors.onYellowBody,
                                   height: 1.4,
                                 ),
                               ),

@@ -1,5 +1,9 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../core/theme/heist_colors.dart';
+
+export '../../core/theme/heist_colors.dart' show HeistColors;
+
 /// Dark projector palette for the audience screen, from the display mocks.
 /// Every size is in stage pixels: the stage is 1920x1080, scaled to fit.
 abstract final class Stage {
@@ -12,10 +16,11 @@ abstract final class Stage {
   static const text = Color(0xFFF1F3F4);
   static const muted = Color(0xFF9AA0A6);
 
-  static const blue = Color(0xFF4285F4);
-  static const red = Color(0xFFEA4335);
-  static const yellow = Color(0xFFFBBC05);
-  static const green = Color(0xFF34A853);
+  // The Google logo colours, from the shared theme.
+  static const blue = HeistColors.blue;
+  static const red = HeistColors.red;
+  static const yellow = HeistColors.yellow;
+  static const green = HeistColors.green;
   static const googleColors = [blue, red, yellow, green];
 
   /// Dark tint of a marker colour, for pills and highlighted rows.

@@ -239,7 +239,7 @@ class _ConfirmedPanelState extends ConsumerState<ConfirmedPanel> {
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-            decoration: BoxDecoration(color: const Color(0xFF1E8E3E), borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(color: HeistColors.heroGreen, borderRadius: BorderRadius.circular(20)),
             child: Column(
               spacing: 6,
               children: [

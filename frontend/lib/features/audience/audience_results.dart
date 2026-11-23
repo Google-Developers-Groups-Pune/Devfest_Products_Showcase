@@ -29,7 +29,7 @@ class AudienceResults extends StatelessWidget {
   }
 }
 
-const _salmon = Color(0xFFF28B82);
+const _salmon = HeistColors.redLight;
 
 // ---------------------------------------------------------------- time up
 
@@ -258,7 +258,7 @@ class _Step extends StatelessWidget {
     final shape = row.shape;
     final color = (shapeInfo[shape] ?? shapeInfo['BLUE_CIRCLE']!).color;
     final score = row.bestScore;
-    final onColor = color == Stage.yellow ? const Color(0xFF202124) : Colors.white;
+    final onColor = color == Stage.yellow ? HeistColors.ink : Colors.white;
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
