@@ -6,6 +6,7 @@ import 'package:prompt_heist/core/api/api_error.dart';
 import 'package:prompt_heist/core/api/player_api.dart';
 import 'package:prompt_heist/core/api/player_exit.dart';
 import 'package:prompt_heist/core/api/token_store.dart';
+import 'package:prompt_heist/core/mock/mock_socket.dart';
 import 'package:prompt_heist/core/realtime/socket_providers.dart';
 
 /// A Dio whose every call fails with [status] and [code].
@@ -98,7 +99,7 @@ void main() {
     final c = ProviderContainer();
     addTearDown(c.dispose);
     c.read(tokenProvider.notifier).set('ply_token');
-    final socket = c.read(playerSocketProvider);
+    final socket = c.read(playerSocketProvider) as MockGameSocket;
     expect(c.read(playerExitProvider), isNull);
     socket.mockKick();
     await Future<void>.delayed(Duration.zero);

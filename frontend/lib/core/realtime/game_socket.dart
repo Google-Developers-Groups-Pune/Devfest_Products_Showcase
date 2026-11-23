@@ -3,9 +3,7 @@ import 'dart:async';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import '../../app/env.dart';
-import '../mock/mock_controller.dart';
-import '../mock/mock_display.dart';
-import '../mock/mock_world.dart';
+import '../mock/mock_socket.dart';
 
 enum SocketStatus { connecting, connected, reconnecting }
 
@@ -18,23 +16,27 @@ class SocketMessage {
 /// One connection to one namespace (/player, /display, /controller).
 /// After EVERY connect or reconnect, [onHydrate] runs so the app reloads
 /// its state over REST. Sockets only receive; all writes go through REST.
-class GameSocket {
-  GameSocket({required this.namespace, required this.onHydrate, this.token});
+///
+/// The app only sees this interface. [RealGameSocket] talks Socket.IO; the
+/// mock flavour gets a [MockGameSocket], which keeps every mock-only member
+/// out of the real code. `Env.isMock` is a constant, so a real build drops
+/// the mock entirely.
+abstract class GameSocket {
+  factory GameSocket({
+    required String namespace,
+    required Future<void> Function() onHydrate,
+    String? token,
+  }) => Env.isMock
+      ? MockGameSocket(namespace: namespace, onHydrate: onHydrate, token: token)
+      : RealGameSocket(namespace: namespace, onHydrate: onHydrate, token: token);
+
+  /// For subclasses.
+  GameSocket.base({required this.namespace, required this.onHydrate, this.token});
 
   final String namespace;
   final String? token;
   final Future<void> Function() onHydrate;
 
-  // Test a wrong phone clock with: --dart-define=MOCK_CLOCK_SKEW=120
-  static const _skew = Duration(
-    seconds: int.fromEnvironment('MOCK_CLOCK_SKEW', defaultValue: 0),
-  );
-
-  io.Socket? _socket;
-  Timer? _mockTimer;
-  StreamSubscription<(String, Object?)>? _worldSub;
-  final _scriptTimers = <Timer>[];
-  DateTime? _mockEnd;
   bool _disposed = false;
   SocketStatus _current = SocketStatus.connecting;
 
@@ -52,10 +54,54 @@ class GameSocket {
   Stream<String> get refused => _refused.stream;
   Stream<SocketStatus> get status => _status.stream;
   SocketStatus get currentStatus => _current;
+  bool get isDisposed => _disposed;
 
-  void connect() => Env.isMock ? _connectMock() : _connectReal();
+  void connect();
 
-  void _connectReal() {
+  /// For subclasses: the connection is up, so reload over REST.
+  Future<void> connected() async {
+    if (_disposed) return;
+    setStatus(SocketStatus.connected);
+    try {
+      await onHydrate();
+    } catch (_) {
+      /* the screen shows its own error state */
+    }
+  }
+
+  /// For subclasses: delivers one server event.
+  void emit(String event, dynamic data) {
+    if (!_disposed) _messages.add(SocketMessage(event, data));
+  }
+
+  /// For subclasses.
+  void setStatus(SocketStatus v) {
+    if (_disposed) return;
+    _current = v;
+    _status.add(v);
+  }
+
+  /// For subclasses: the server refused the handshake with [code].
+  void refuse(String code) {
+    if (!_refused.isClosed) _refused.add(code);
+  }
+
+  void dispose() {
+    _disposed = true;
+    _messages.close();
+    _status.close();
+    _refused.close();
+  }
+}
+
+/// The Socket.IO connection to the backend.
+class RealGameSocket extends GameSocket {
+  RealGameSocket({required super.namespace, required super.onHydrate, super.token}) : super.base();
+
+  io.Socket? _socket;
+
+  @override
+  void connect() {
     final opts = io.OptionBuilder()
         .setTransports(['websocket'])
         .disableAutoConnect()
@@ -68,187 +114,24 @@ class GameSocket {
 
     final s = io.io('${Env.socketUrl}$namespace', opts);
     _socket = s;
-    s.onConnect((_) => _onConnected());
-    s.onDisconnect((_) => _set(SocketStatus.reconnecting));
+    s.onConnect((_) => connected());
+    s.onDisconnect((_) => setStatus(SocketStatus.reconnecting));
     s.onConnectError((err) {
       final code = err is Map ? '${err['message']}' : '$err';
-      if (refusalCodes.contains(code)) {
+      if (GameSocket.refusalCodes.contains(code)) {
         s.dispose();
-        if (!_refused.isClosed) _refused.add(code);
+        refuse(code);
         return;
       }
-      _set(SocketStatus.reconnecting);
+      setStatus(SocketStatus.reconnecting);
     });
-    s.onAny((event, data) => _emit(event, data));
+    s.onAny((event, data) => emit(event, data));
     s.connect();
   }
 
-  void _connectMock() {
-    _mockTimer?.cancel();
-    _worldSub?.cancel();
-    if (namespace == '/display') {
-      // The scripted audience show sends its own timer:sync.
-      _worldSub = MockDisplay.events.stream.listen((e) => _emit(e.$1, e.$2));
-      Future<void>.delayed(Duration.zero, _onConnected);
-      return;
-    }
-    if (namespace == '/controller') {
-      // The mock booth sends its own timer:sync while a round runs.
-      MockController.startClock();
-      _worldSub = MockController.events.stream.listen((e) => _emit(e.$1, e.$2));
-      Future<void>.delayed(Duration.zero, _onConnected);
-      return;
-    }
-    // Prompt events from the mock world arrive like real socket events.
-    _worldSub = MockWorld.events.stream.listen((e) => _emit(e.$1, e.$2));
-    Future<void>.delayed(Duration.zero, _onConnected);
-    Future<void>.delayed(const Duration(milliseconds: 300), _sendMockSync);
-    _mockTimer = Timer.periodic(
-      const Duration(seconds: 3),
-      (_) => _sendMockSync(),
-    );
-  }
-
-  void _sendMockSync() {
-    final now = DateTime.now().toUtc();
-    var end = MockWorld.roundEnd;
-    if (end == null) {
-      // /dev screen only: a free-running 90 second round.
-      if (_mockEnd == null ||
-          now.isAfter(_mockEnd!.add(const Duration(seconds: 5)))) {
-        _mockEnd = now.add(const Duration(seconds: 90));
-      }
-      end = _mockEnd;
-    }
-    _emit('timer:sync', {
-      'roundId': 'rnd_1',
-      'roundEndAt': end!.add(_skew).toIso8601String(),
-      'serverNow': now.add(_skew).toIso8601String(),
-    });
-  }
-
-  /// Mock only: plays a lobby filling up, names revealed, then the round starting.
-  void mockLobbyScript({required String myLabel}) {
-    for (final t in _scriptTimers) {
-      t.cancel();
-    }
-    _scriptTimers.clear();
-
-    void at(int sec, void Function() fn) => _scriptTimers.add(
-      Timer(Duration(seconds: sec), () {
-        if (!_disposed) fn();
-      }),
-    );
-
-    for (var n = 2; n <= 5; n++) {
-      at(
-        (n - 1) * 2,
-        () => _emit('player:joined', {'joinedCount': n, 'capacity': 5}),
-      );
-    }
-    at(10, () {
-      _emit('players:revealed', {
-        'players': [
-          {
-            'slotNumber': 1,
-            'label': myLabel,
-            'shape': 'BLUE_CIRCLE',
-            'connection': 'CONNECTED',
-          },
-          {
-            'slotNumber': 2,
-            'label': 'Priya',
-            'shape': 'RED_SQUARE',
-            'connection': 'CONNECTED',
-          },
-          {
-            'slotNumber': 3,
-            'label': 'Rohan',
-            'shape': 'YELLOW_DIAMOND',
-            'connection': 'CONNECTED',
-          },
-          {
-            'slotNumber': 4,
-            'label': 'Meera',
-            'shape': 'GREEN_PILL',
-            'connection': 'CONNECTED',
-          },
-          {
-            'slotNumber': 5,
-            'label': 'Isha',
-            'shape': 'GREEN_CIRCLE',
-            'connection': 'CONNECTED',
-          },
-        ],
-      });
-    });
-    at(14, () {
-      MockWorld.startRound();
-      final now = DateTime.now().toUtc();
-      _emit('round:started', {
-        'roundId': 'rnd_1',
-        'roundNumber': 1,
-        'durationSeconds': MockWorld.roundSeconds,
-        'startedAt': now.add(_skew).toIso8601String(),
-        'roundEndAt': MockWorld.roundEnd!.add(_skew).toIso8601String(),
-        'serverNow': now.add(_skew).toIso8601String(),
-        'treasure': MockWorld.treasure,
-      });
-    });
-  }
-
-  /// Mock only: pretend the server kicked this device.
-  void mockKick() =>
-      _emit('player:kicked', {'reason': 'REJOINED_ON_ANOTHER_DEVICE'});
-
-  Future<void> _onConnected() async {
-    if (_disposed) return;
-    _set(SocketStatus.connected);
-    try {
-      await onHydrate();
-    } catch (_) {
-      /* the screen shows its own error state */
-    }
-  }
-
-  void _emit(String event, dynamic data) {
-    if (!_disposed) _messages.add(SocketMessage(event, data));
-  }
-
-  void _set(SocketStatus v) {
-    if (_disposed) return;
-    _current = v;
-    _status.add(v);
-  }
-
-  /// Test helper for the QE check: drop the connection, come back after [d].
-  void simulateOffline(Duration d) {
-    _set(SocketStatus.reconnecting);
-    _mockTimer?.cancel();
-    // Events sent while offline are lost, as on a real network. The hydrate
-    // call after reconnecting brings the screen back up to date.
-    _worldSub?.cancel();
-    _socket?.disconnect();
-    Future<void>.delayed(d, () {
-      if (_disposed) return;
-      if (Env.isMock) {
-        _connectMock();
-      } else {
-        _socket?.connect();
-      }
-    });
-  }
-
+  @override
   void dispose() {
-    _disposed = true;
-    _mockTimer?.cancel();
-    _worldSub?.cancel();
-    for (final t in _scriptTimers) {
-      t.cancel();
-    }
     _socket?.dispose();
-    _messages.close();
-    _status.close();
-    _refused.close();
+    super.dispose();
   }
 }

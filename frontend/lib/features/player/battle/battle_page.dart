@@ -9,6 +9,7 @@ import '../../../core/widgets/widgets.dart';
 import '../widgets/player_ui.dart';
 import 'game_state.dart';
 import 'prompt_tile.dart';
+import '../../../core/mock/mock_socket.dart';
 
 class BattlePage extends ConsumerStatefulWidget {
   const BattlePage({super.key});
@@ -71,7 +72,7 @@ class _BattlePageState extends ConsumerState<BattlePage> {
     final bestChip = _BestChip(
       game.bestScore,
       // Mock only: long-press to test the reconnecting state.
-      onLongPress: Env.isMock
+      onLongPress: Env.isMock && socket is MockGameSocket
           ? () => socket.simulateOffline(const Duration(seconds: 10))
           : null,
     );
@@ -88,7 +89,11 @@ class _BattlePageState extends ConsumerState<BattlePage> {
           if (reconnecting) const _ReconnectingBanner(),
           Row(
             children: [
-              TimerPill(remaining: clock.active ? clock.remaining : null, tone: tone, size: TimerPillSize.small),
+              TimerPill(
+                remaining: clock.active ? clock.remaining : null,
+                tone: tone,
+                size: TimerPillSize.small,
+              ),
               const Spacer(),
               bestChip,
             ],
@@ -206,8 +211,9 @@ class _BattlePageState extends ConsumerState<BattlePage> {
                     borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                onPressed:
-                    enabled && _text.text.trim().isNotEmpty ? _send : null,
+                onPressed: enabled && _text.text.trim().isNotEmpty
+                    ? _send
+                    : null,
                 icon: const Icon(Icons.send_rounded),
               ),
             ],

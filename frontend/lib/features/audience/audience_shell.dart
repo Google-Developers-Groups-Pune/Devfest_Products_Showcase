@@ -10,6 +10,7 @@ import 'audience_battle.dart';
 import 'audience_results.dart';
 import 'audience_state.dart';
 import 'audience_style.dart';
+import '../../core/mock/mock_socket.dart';
 
 /// Entry point of the `/audience` route: the public big screen ("display" in
 /// the API). No login. Loaded with a deferred import.
@@ -82,9 +83,12 @@ class _AudienceShellState extends ConsumerState<AudienceShell> {
     // Mock only: press O to drop the connection for 10 seconds (QE check).
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.keyO): () => ref
-            .read(displaySocketProvider)
-            .simulateOffline(const Duration(seconds: 10)),
+        const SingleActivator(LogicalKeyboardKey.keyO): () {
+          final socket = ref.read(displaySocketProvider);
+          if (Env.isMock && socket is MockGameSocket) {
+            socket.simulateOffline(const Duration(seconds: 10));
+          }
+        },
       },
       child: Focus(autofocus: true, child: stage),
     );

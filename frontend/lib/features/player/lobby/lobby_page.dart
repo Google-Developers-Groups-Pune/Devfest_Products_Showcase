@@ -9,6 +9,7 @@ import '../../../core/storage/player_session.dart';
 import '../../../core/widgets/widgets.dart';
 import '../widgets/player_ui.dart';
 import 'lobby_state.dart';
+import '../../../core/mock/mock_socket.dart';
 
 class LobbyPage extends ConsumerStatefulWidget {
   const LobbyPage({super.key});
@@ -50,11 +51,10 @@ class _LobbyPageState extends ConsumerState<LobbyPage> {
     }
 
     // Mock only: play a lobby filling up, then the round starting.
-    if (lobby.ready && !_scripted && Env.isMock) {
+    final socket = ref.read(playerSocketProvider);
+    if (lobby.ready && !_scripted && Env.isMock && socket is MockGameSocket) {
       _scripted = true;
-      ref
-          .read(playerSocketProvider)
-          .mockLobbyScript(myLabel: lobby.myLabel ?? 'You');
+      socket.mockLobbyScript(myLabel: lobby.myLabel ?? 'You');
     }
   }
 
