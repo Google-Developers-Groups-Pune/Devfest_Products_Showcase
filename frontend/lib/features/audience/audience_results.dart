@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../core/theme/score_colors.dart';
 import '../../core/widgets/shape_marker.dart';
+import '../../core/result/round_result.dart';
 import 'audience_state.dart';
 import 'audience_style.dart';
 import '../../core/widgets/treasure_image.dart';
@@ -19,11 +20,11 @@ class AudienceResults extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final result = state.result;
-    final winner = result?['winner'];
+    final winner = result?.winner;
     if (state.phase == 'RESULTS' && result != null) {
       return WinnerScreen(result: result, treasure: state.treasure);
     }
-    if (winner is Map) return ProvisionalScreen(winner: Map<String, dynamic>.from(winner));
+    if (winner != null) return ProvisionalScreen(winner: winner);
     return const TimeUpScreen();
   }
 }
@@ -96,13 +97,13 @@ class _StageDotsState extends State<StageDots> with SingleTickerProviderStateMix
 /// Provisional winner, not yet confirmed by the booth (D22, designed by dev).
 class ProvisionalScreen extends StatelessWidget {
   const ProvisionalScreen({super.key, required this.winner});
-  final Map<String, dynamic> winner;
+  final ResultPlayer winner;
 
   @override
   Widget build(BuildContext context) {
-    final shape = '${winner['shape'] ?? 'BLUE_CIRCLE'}';
+    final shape = winner.shape;
     final color = (shapeInfo[shape] ?? shapeInfo['BLUE_CIRCLE']!).color;
-    final score = (winner['bestScore'] as num?)?.toInt();
+    final score = winner.bestScore;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -147,7 +148,7 @@ class ProvisionalScreen extends StatelessWidget {
                       child: FittedBox(
                         fit: BoxFit.scaleDown,
                         child: Text(
-                          '${winner['label'] ?? ''}',
+                          winner.label,
                           style: TextStyle(fontSize: 120, fontWeight: FontWeight.w500, color: Stage.light(color)),
                         ),
                       ),
@@ -174,23 +175,14 @@ class ProvisionalScreen extends StatelessWidget {
 /// "Isha wins!", the tie-break line, every player ranked, and the story card.
 class WinnerScreen extends StatelessWidget {
   const WinnerScreen({super.key, required this.result, this.treasure});
-  final Map<String, dynamic> result;
+  final RoundResult result;
   final AudienceTreasure? treasure;
-
-  List<Map<String, dynamic>> get _ranking {
-    final rows = [
-      for (final r in (result['ranking'] as List?) ?? const [])
-        if (r is Map) Map<String, dynamic>.from(r),
-    ]..sort((a, b) => ((a['rank'] as num?) ?? 99).compareTo((b['rank'] as num?) ?? 99));
-    return rows;
-  }
 
   @override
   Widget build(BuildContext context) {
-    final winner = result['winner'];
-    final label = winner is Map ? '${winner['label']}' : '';
-    final tie = result['tieBreakExplanation'];
-    final ranking = _ranking;
+    final label = result.winner?.label ?? '';
+    final tie = result.tieBreakExplanation;
+    final ranking = result.ranking;
     final podium = ranking.take(3).toList();
     final rest = ranking.skip(3).toList();
     return Padding(
@@ -205,7 +197,7 @@ class WinnerScreen extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   child: Text('$label wins!', style: const TextStyle(fontSize: 130, fontWeight: FontWeight.w500, height: 1.1)),
                 ),
-                if (tie is String && tie.isNotEmpty) ...[
+                if (tie != null && tie.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Text(tie, textAlign: TextAlign.center, style: const TextStyle(fontSize: 36, color: Stage.muted)),
                 ],
@@ -228,11 +220,11 @@ class WinnerScreen extends StatelessWidget {
 
 class _Podium extends StatelessWidget {
   const _Podium({required this.rows});
-  final List<Map<String, dynamic>> rows;
+  final List<ResultPlayer> rows;
 
   @override
   Widget build(BuildContext context) {
-    Map<String, dynamic>? at(int rank) => rows.where((r) => r['rank'] == rank).firstOrNull;
+    ResultPlayer? at(int rank) => rows.where((r) => r.rank == rank).firstOrNull;
     // Second, first, third, as on a real podium.
     final order = [(at(2), 2, 0.48), (at(1), 1, 0.66), (at(3), 3, 0.33)];
     return LayoutBuilder(
@@ -257,15 +249,15 @@ class _Podium extends StatelessWidget {
 
 class _Step extends StatelessWidget {
   const _Step({required this.row, required this.rank, required this.blockHeight});
-  final Map<String, dynamic> row;
+  final ResultPlayer row;
   final int rank;
   final double blockHeight;
 
   @override
   Widget build(BuildContext context) {
-    final shape = '${row['shape'] ?? 'BLUE_CIRCLE'}';
+    final shape = row.shape;
     final color = (shapeInfo[shape] ?? shapeInfo['BLUE_CIRCLE']!).color;
-    final score = (row['bestScore'] as num?)?.toInt();
+    final score = row.bestScore;
     final onColor = color == Stage.yellow ? const Color(0xFF202124) : Colors.white;
     return Column(
       mainAxisAlignment: MainAxisAlignment.end,
@@ -277,7 +269,7 @@ class _Step extends StatelessWidget {
         // Labels are never cut off: "Meera (Player 5)" must stay whole.
         FittedBox(
           fit: BoxFit.scaleDown,
-          child: Text('${row['label'] ?? ''}', style: const TextStyle(fontSize: 38)),
+          child: Text(row.label, style: const TextStyle(fontSize: 38)),
         ),
         Text(score?.toString() ?? '–', style: const TextStyle(fontSize: 34, fontFamily: 'AppMono', color: Stage.muted)),
         const SizedBox(height: 12),
@@ -299,12 +291,12 @@ class _Step extends StatelessWidget {
 /// Places 4 and 5, under the podium (D47: every player is ranked).
 class _RestRow extends StatelessWidget {
   const _RestRow({required this.row});
-  final Map<String, dynamic> row;
+  final ResultPlayer row;
 
   @override
   Widget build(BuildContext context) {
-    final shape = '${row['shape'] ?? 'BLUE_CIRCLE'}';
-    final score = (row['bestScore'] as num?)?.toInt();
+    final shape = row.shape;
+    final score = row.bestScore;
     return Container(
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
@@ -313,7 +305,7 @@ class _RestRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 70,
-            child: Text('${row['rank']}', style: const TextStyle(fontSize: 36, fontFamily: 'AppMono', color: Stage.muted)),
+            child: Text('${row.rank ?? ''}', style: const TextStyle(fontSize: 36, fontFamily: 'AppMono', color: Stage.muted)),
           ),
           ShapeMarker(shape, size: 34),
           const SizedBox(width: 20),
@@ -321,7 +313,7 @@ class _RestRow extends StatelessWidget {
             child: FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
-              child: Text('${row['label'] ?? ''}', style: const TextStyle(fontSize: 34)),
+              child: Text(row.label, style: const TextStyle(fontSize: 34)),
             ),
           ),
           Text(

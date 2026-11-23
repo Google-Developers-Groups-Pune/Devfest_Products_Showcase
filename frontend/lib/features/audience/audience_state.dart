@@ -7,6 +7,7 @@ import '../../core/realtime/socket_providers.dart';
 import '../../core/timer/countdown.dart';
 import '../../core/json.dart';
 import '../../core/theme/slot_shape.dart';
+import '../../core/result/round_result.dart';
 export '../../core/json.dart';
 
 
@@ -141,7 +142,7 @@ class AudienceState {
   final List<String> unlocked;
 
   /// Public result: provisional in RESULT_PENDING, full in RESULTS (FE-23).
-  final Json? result;
+  final RoundResult? result;
 
   bool get revealed => players.isNotEmpty;
 
@@ -156,7 +157,7 @@ class AudienceState {
     AudienceTreasure? treasure,
     bool clearTreasure = false,
     List<String>? unlocked,
-    Json? result,
+    RoundResult? result,
     bool clearResult = false,
   }) => AudienceState(
     ready: ready ?? this.ready,
@@ -187,7 +188,7 @@ class AudienceState {
       players: _players(d['players']),
       treasure: t is Map ? AudienceTreasure.fromJson(Json.from(t)) : null,
       unlocked: [for (final u in (d['unlocked'] as List?) ?? const []) '$u'],
-      result: r is Map ? Json.from(r) : null,
+      result: r is Map ? RoundResult.fromJson(Json.from(r)) : null,
     );
   }
 
@@ -277,11 +278,11 @@ class AudienceState {
         // Winner and score only, shown as pending (D22).
         return copyWith(
           phase: 'RESULT_PENDING',
-          result: {'status': 'PROVISIONAL', 'winner': d['winner']},
+          result: RoundResult.fromJson({'status': 'PROVISIONAL', 'winner': d['winner']}),
         );
 
       case 'result:confirmed':
-        return copyWith(phase: 'RESULTS', result: d);
+        return copyWith(phase: 'RESULTS', result: RoundResult.fromJson(d));
 
       case 'round:discarded':
         return copyWith(phase: 'DISCARDED');

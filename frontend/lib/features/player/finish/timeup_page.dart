@@ -38,7 +38,7 @@ class _TimeUpPageState extends ConsumerState<TimeUpPage> {
   Widget build(BuildContext context) {
     ref.listen(resultProvider, (prev, next) {
       final d = next.value;
-      if (d != null && d['status'] == 'CONFIRMED') context.go('/player/result');
+      if (d != null && d.confirmed) context.go('/player/result');
     });
 
     final c = context.hc;

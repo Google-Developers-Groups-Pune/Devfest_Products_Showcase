@@ -8,11 +8,12 @@ import '../../../core/widgets/widgets.dart';
 import '../battle/game_state.dart';
 import '../widgets/player_ui.dart';
 import '../../../core/ordinal.dart';
+import '../../../core/result/round_result.dart';
 
 /// GET /api/player/result. PENDING until the Controller confirms.
-final resultProvider = FutureProvider.autoDispose<Json>((ref) {
+final resultProvider = FutureProvider.autoDispose<RoundResult>((ref) async {
   ref.watch(tokenProvider);
-  return ref.watch(playerApiProvider).result();
+  return RoundResult.fromJson(await ref.watch(playerApiProvider).result());
 });
 
 class ResultPage extends ConsumerStatefulWidget {
@@ -32,7 +33,7 @@ class _ResultPageState extends ConsumerState<ResultPage> {
     // after the frame, never from build.
     ref.listenManual(resultProvider, (_, next) {
       final d = next.value;
-      if (d == null || d['status'] == 'CONFIRMED' || _left) return;
+      if (d == null || d.confirmed || _left) return;
       _left = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) context.go('/player/timeup');
@@ -52,7 +53,7 @@ class _ResultPageState extends ConsumerState<ResultPage> {
       ),
       data: (d) {
         // Not confirmed yet: the listener in initState goes back to time up.
-        if (d['status'] != 'CONFIRMED') return const PlayerLoading();
+        if (!d.confirmed) return const PlayerLoading();
         return _ResultView(d, mySlot: mySlot);
       },
     );
@@ -61,25 +62,17 @@ class _ResultPageState extends ConsumerState<ResultPage> {
 
 class _ResultView extends StatelessWidget {
   const _ResultView(this.d, {required this.mySlot});
-  final Json d;
+  final RoundResult d;
   final int? mySlot;
 
   @override
   Widget build(BuildContext context) {
     final c = context.hc;
-    final ranking = [
-      for (final r in (d['ranking'] as List))
-        Map<String, dynamic>.from(r as Map),
-    ];
-    final myRank = (d['myRank'] as num?)?.toInt();
-    final mine = ranking.where((r) => r['rank'] == myRank).toList();
-    final myBest = mine.isEmpty
-        ? null
-        : (mine.first['bestScore'] as num?)?.toInt();
-    final tie = d['tieBreakExplanation'] as String?;
-    final story = d['story'] is Map
-        ? Map<String, dynamic>.from(d['story'] as Map)
-        : null;
+    final ranking = d.ranking;
+    final myRank = d.myRank;
+    final myBest = myRank == null ? null : d.atRank(myRank)?.bestScore;
+    final tie = d.tieBreakExplanation;
+    final story = d.story;
 
     final String headline;
     final String sub;
@@ -108,10 +101,10 @@ class _ResultView extends StatelessWidget {
     }
     final (iconBg, iconFg) = tone.colors(c);
 
-    String label(Map<String, dynamic> r) =>
-        r['slotNumber'] == mySlot ? '${r['label']} (you)' : '${r['label']}';
+    String label(ResultPlayer r) =>
+        r.slotNumber == mySlot ? '${r.label} (you)' : r.label;
 
-    final top = ranking.where((r) => ((r['rank'] as num?) ?? 99) <= 3);
+    final top = ranking.where((r) => (r.rank ?? 99) <= 3);
     final rest = ranking.skip(3).toList();
 
     return PlayerPage(
@@ -150,10 +143,10 @@ class _ResultView extends StatelessWidget {
             entries: [
               for (final r in top)
                 PodiumEntry(
-                  rank: (r['rank'] as num).toInt(),
-                  shape: slotShapeOf('${r['shape']}'),
+                  rank: r.rank!,
+                  shape: slotShapeOf(r.shape),
                   label: label(r),
-                  score: (r['bestScore'] as num?)?.toInt() ?? 0,
+                  score: r.bestScore ?? 0,
                 ),
             ],
           ),
@@ -163,7 +156,7 @@ class _ResultView extends StatelessWidget {
               spacing: 10,
               children: [
                 for (final r in rest)
-                  _RankRow(r, label: label(r), isMe: r['slotNumber'] == mySlot),
+                  _RankRow(r, label: label(r), isMe: r.slotNumber == mySlot),
               ],
             ),
           ),
@@ -187,14 +180,14 @@ class _ResultView extends StatelessWidget {
 
 class _RankRow extends StatelessWidget {
   const _RankRow(this.r, {required this.label, required this.isMe});
-  final Map<String, dynamic> r;
+  final ResultPlayer r;
   final String label;
   final bool isMe;
 
   @override
   Widget build(BuildContext context) {
     final c = context.hc;
-    final score = (r['bestScore'] as num?)?.toInt();
+    final score = r.bestScore;
     final (_, scoreFg) = scoreTone(score ?? 0).colors(c);
     return Row(
       spacing: 10,
@@ -202,11 +195,11 @@ class _RankRow extends StatelessWidget {
         SizedBox(
           width: 20,
           child: Text(
-            '${r['rank']}',
+            '${r.rank ?? ''}',
             style: context.mono(TextStyle(color: c.textMuted)),
           ),
         ),
-        ShapeAvatar(slotShapeOf('${r['shape']}'), size: 20),
+        ShapeAvatar(slotShapeOf(r.shape), size: 20),
         Expanded(
           child: Text(
             label,
@@ -229,7 +222,7 @@ class _RankRow extends StatelessWidget {
 
 class _StoryCard extends StatelessWidget {
   const _StoryCard(this.story);
-  final Map<String, dynamic> story;
+  final ResultStory story;
 
   @override
   Widget build(BuildContext context) {
@@ -243,7 +236,7 @@ class _StoryCard extends StatelessWidget {
           children: [
             AspectRatio(
               aspectRatio: 16 / 9,
-              child: TreasureImage('${story['imageUrl'] ?? ''}'),
+              child: TreasureImage(story.imageUrl),
             ),
             Padding(
               padding: const EdgeInsets.all(14),
@@ -252,7 +245,7 @@ class _StoryCard extends StatelessWidget {
                 spacing: 4,
                 children: [
                   Text(
-                    'The story of ${story['title']}',
+                    'The story of ${story.title}',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -260,7 +253,7 @@ class _StoryCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${story['backstory']}',
+                    story.backstory,
                     style: TextStyle(
                       fontSize: 13,
                       height: 1.5,
