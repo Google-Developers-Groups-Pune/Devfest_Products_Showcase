@@ -25,11 +25,33 @@ String ordinal(int n) {
   };
 }
 
-class ResultPage extends ConsumerWidget {
+class ResultPage extends ConsumerStatefulWidget {
   const ResultPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ResultPage> createState() => _ResultPageState();
+}
+
+class _ResultPageState extends ConsumerState<ResultPage> {
+  bool _left = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Not confirmed yet: back to the time up screen. Done from a listener,
+    // after the frame, never from build.
+    ref.listenManual(resultProvider, (_, next) {
+      final d = next.value;
+      if (d == null || d['status'] == 'CONFIRMED' || _left) return;
+      _left = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/player/timeup');
+      });
+    }, fireImmediately: true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final res = ref.watch(resultProvider);
     final mySlot = ref.watch(gameProvider.select((g) => g.mySlot));
     return res.when(
@@ -39,13 +61,8 @@ class ResultPage extends ConsumerWidget {
         onRetry: () => ref.invalidate(resultProvider),
       ),
       data: (d) {
-        if (d['status'] != 'CONFIRMED') {
-          // Not confirmed yet: back to the time up screen.
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (context.mounted) context.go('/player/timeup');
-          });
-          return const PlayerLoading();
-        }
+        // Not confirmed yet: the listener in initState goes back to time up.
+        if (d['status'] != 'CONFIRMED') return const PlayerLoading();
         return _ResultView(d, mySlot: mySlot);
       },
     );

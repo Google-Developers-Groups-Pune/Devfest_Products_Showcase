@@ -32,30 +32,35 @@ class _LobbyPageState extends ConsumerState<LobbyPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final lobby = ref.watch(lobbyProvider);
+  void initState() {
+    super.initState();
+    // Reacts to the lobby from a listener, never from build. The first
+    // value is handled after the first frame, when navigation is allowed.
+    ref.listenManual(lobbyProvider, (_, lobby) => _onLobby(lobby));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _onLobby(ref.read(lobbyProvider));
+    });
+  }
 
+  void _onLobby(LobbyState lobby) {
     // round:started moves to the battle with no button.
-    if (lobby.roundStarted && !_left) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _leave('/player/battle', forget: false);
-      });
+    if (lobby.roundStarted) {
+      _leave('/player/battle', forget: false);
+      return;
     }
 
     // Mock only: play a lobby filling up, then the round starting.
-    if (lobby.ready &&
-        !lobby.roundStarted &&
-        !_scripted &&
-        Env.isMock) {
+    if (lobby.ready && !_scripted && Env.isMock) {
       _scripted = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          ref
-              .read(playerSocketProvider)
-              .mockLobbyScript(myLabel: lobby.myLabel ?? 'You');
-        }
-      });
+      ref
+          .read(playerSocketProvider)
+          .mockLobbyScript(myLabel: lobby.myLabel ?? 'You');
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lobby = ref.watch(lobbyProvider);
 
     if (!lobby.ready) {
       final failed = ref.watch(meProvider).hasError;

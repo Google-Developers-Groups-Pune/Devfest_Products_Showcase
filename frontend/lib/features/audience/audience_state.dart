@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/realtime/game_socket.dart';
 import '../../core/realtime/socket_providers.dart';
 import '../../core/timer/countdown.dart';
-import '../../core/wake/wake_lock.dart';
 import '../../core/json.dart';
 import '../../core/theme/slot_shape.dart';
 export '../../core/json.dart';
@@ -328,8 +327,6 @@ class AudienceNotifier extends Notifier<AudienceState> {
 
   @override
   AudienceState build() {
-    keepScreenAwake();
-
     final socket = ref.watch(displaySocketProvider);
     final sub = socket.messages.listen(
       (m) => state = state.apply(m.event, m.data),

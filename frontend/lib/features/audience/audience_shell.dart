@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../app/env.dart';
 import '../../core/realtime/socket_providers.dart';
+import '../../core/wake/wake_lock.dart';
 import '../../core/widgets/shape_marker.dart';
 import 'audience_battle.dart';
 import 'audience_results.dart';
@@ -16,11 +17,23 @@ import 'audience_style.dart';
 /// The screen looks after itself (FE-19): it hydrates from
 /// `GET /api/display/state`, listens on the `/display` socket, rehydrates after
 /// every reconnect, and picks its screen from `phase` alone.
-class AudienceShell extends ConsumerWidget {
+class AudienceShell extends ConsumerStatefulWidget {
   const AudienceShell({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AudienceShell> createState() => _AudienceShellState();
+}
+
+class _AudienceShellState extends ConsumerState<AudienceShell> {
+  @override
+  void initState() {
+    super.initState();
+    // The big screen must never dim or sleep. Asked once, not on every build.
+    keepScreenAwake();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final a = ref.watch(audienceProvider);
     final stage = Scaffold(
       backgroundColor: Stage.background,
@@ -52,7 +65,11 @@ class AudienceShell extends ConsumerWidget {
                     child: GoogleStripe(),
                   ),
                   if (!a.connected)
-                    const Positioned(top: 30, right: 40, child: _Reconnecting()),
+                    const Positioned(
+                      top: 30,
+                      right: 40,
+                      child: _Reconnecting(),
+                    ),
                 ],
               ),
             ),
@@ -161,9 +178,7 @@ class _PlayerPill extends StatelessWidget {
           ShapeMarker(p.shape, size: 40),
           const SizedBox(width: 20),
           // Labels are short and never cut off: "(Player 5)" must stay.
-          wide
-              ? Expanded(child: _label(c))
-              : _label(c),
+          wide ? Expanded(child: _label(c)) : _label(c),
           if (check) ...[
             const SizedBox(width: 16),
             Icon(Icons.check_circle, size: 40, color: Stage.light(c)),
@@ -194,7 +209,11 @@ class _IdleScreen extends StatelessWidget {
         SizedBox(height: 56),
         Text(
           'Prompt Heist',
-          style: TextStyle(fontSize: 180, fontWeight: FontWeight.w600, height: 1),
+          style: TextStyle(
+            fontSize: 180,
+            fontWeight: FontWeight.w600,
+            height: 1,
+          ),
         ),
         SizedBox(height: 32),
         Text(
@@ -366,7 +385,11 @@ class _GetReadyScreen extends StatelessWidget {
         const SizedBox(height: 40),
         const Text(
           'Get ready…',
-          style: TextStyle(fontSize: 170, fontWeight: FontWeight.w500, height: 1),
+          style: TextStyle(
+            fontSize: 170,
+            fontWeight: FontWeight.w500,
+            height: 1,
+          ),
         ),
         const SizedBox(height: 36),
         // Nothing from the treasure is shown until the round starts, so an
