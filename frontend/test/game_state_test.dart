@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:prompt_heist/core/api/api_client.dart';
 import 'package:prompt_heist/core/api/token_store.dart';
 import 'package:prompt_heist/core/mock/mock_world.dart';
+import 'package:prompt_heist/core/realtime/socket_providers.dart';
 import 'package:prompt_heist/features/player/battle/game_state.dart';
 
 /// A fake player backend. [prompts] is what `GET /me` returns; [submit]
@@ -166,4 +167,53 @@ void main() {
       expect(c.read(gameProvider).bestScore, 72);
     },
   );
+
+  test('a reload matches prompts by id, not by text (review bug 9)', () async {
+    final replies = <String, Completer<(int, Map<String, dynamic>)>>{};
+    final keys = <String>[];
+    backend.submit = (key, _) {
+      keys.add(key);
+      return (replies[key] = Completer()).future;
+    };
+    // The same text, sent twice; neither reply has come back yet.
+    final first = game().submit('same text');
+    final second = game().submit('same text');
+    await until(() => keys.length == 2);
+
+    // A reload: the server has scored only the SECOND one so far.
+    backend.prompts = [
+      {
+        'promptId': 'prm_2',
+        'text': 'same text',
+        'status': 'SCORED',
+        'score': 90,
+        'feedback': 'Close!',
+        'receivedAt': DateTime.now().toUtc().toIso8601String(),
+      },
+    ];
+    c.invalidate(meProvider);
+    await until(() => items().length == 3);
+    expect(
+      items().where((p) => p.promptId == null),
+      hasLength(2),
+      reason: 'no local card was guessed from its text',
+    );
+
+    replies[keys[1]]!.complete((
+      200,
+      {'promptId': 'prm_2', 'status': 'SCORED'},
+    ));
+    replies[keys[0]]!.complete((
+      202,
+      {'promptId': 'prm_1', 'status': 'RECEIVED'},
+    ));
+    await Future.wait([first, second]);
+
+    expect(items(), hasLength(2));
+    final byKey = {for (final p in items()) p.key: p};
+    expect(byKey[keys[0]]!.promptId, 'prm_1');
+    expect(byKey[keys[0]]!.stage, PromptStage.evaluating);
+    expect(byKey[keys[1]]!.promptId, 'prm_2');
+    expect(byKey[keys[1]]!.score, 90);
+  });
 }

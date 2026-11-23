@@ -262,22 +262,10 @@ class GameNotifier extends Notifier<GameState> {
         continue;
       }
 
-      // A local prompt the server already has, but whose reply we missed.
-      final j = _items.indexWhere(
-        (e) => e.promptId == null && e.text == merged.text,
-      );
-
-      if (j >= 0) {
-        _items[j] = _items[j].copyWith(
-          promptId: merged.promptId,
-          stage: merged.stage,
-          score: merged.score,
-          feedback: merged.feedback,
-          message: merged.message,
-        );
-      } else {
-        _items.add(merged);
-      }
+      // Matched by promptId only. Text is not unique: the same prompt can be
+      // sent twice. A local prompt still waiting for its reply is merged
+      // with this copy when the reply brings the promptId (see _send).
+      _items.add(merged);
     }
 
     _items.sort((a, b) => a.createdAt.compareTo(b.createdAt));
@@ -491,8 +479,26 @@ class GameNotifier extends Notifier<GameState> {
         ),
       );
 
+      // A reload may already have added the server's copy of this prompt.
+      final id = '${r['promptId']}';
+      final copy = _items.indexWhere((p) => p.promptId == id && p.key != key);
+      if (copy >= 0) {
+        final server = _items.removeAt(copy);
+        _updateBy(
+          (p) => p.key == key,
+          (p) => server.stage == PromptStage.evaluating
+              ? p
+              : p.copyWith(
+                  stage: server.stage,
+                  score: server.score,
+                  feedback: server.feedback,
+                  message: server.message,
+                ),
+        );
+      }
+
       // The socket may have been faster than this reply.
-      final early = _early.remove('${r['promptId']}');
+      final early = _early.remove(id);
       if (early != null) _onMessage(early);
     } catch (e) {
       if (!ref.mounted) return;
