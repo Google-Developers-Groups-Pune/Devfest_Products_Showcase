@@ -194,15 +194,6 @@ class _NameIdPageState extends ConsumerState<NameIdPage> {
                 ),
               ],
             ),
-          )
-        else
-          const InfoCard(
-            tone: Tone.accent,
-            child: IconLine(
-              Icons.visibility_off_outlined,
-              'Only your first name shows on the big screen. Your details '
-              'are used just for today.',
-            ),
           ),
       ],
       bottom: [
