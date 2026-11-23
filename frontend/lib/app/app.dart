@@ -6,7 +6,6 @@ import '../core/api/token_store.dart';
 import '../core/storage/player_session.dart';
 import '../core/widgets/app_background.dart';
 import '../features/player/battle/game_state.dart';
-import '../features/player/kicked_state.dart';
 import 'router.dart';
 
 class PromptHeistApp extends ConsumerWidget {
@@ -16,15 +15,8 @@ class PromptHeistApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
 
-    // player:kicked on any player screen: forget this device and stop.
-    ref.listen<bool>(kickedProvider, (prev, kicked) {
-      if (!kicked) return;
-      forgetPlayerToken();
-      ref.read(tokenProvider.notifier).set(null);
-      router.go(AppRoutes.playerKicked);
-    });
-
-    // A 401 on any player screen ends the session there (FE-07).
+    // A 401, a refused socket or player:kicked on any player screen ends
+    // the session there (FE-07, FE-10).
     ref.listen<PlayerExit?>(playerExitProvider, (prev, exit) {
       if (exit == null) return;
       forgetPlayerToken();

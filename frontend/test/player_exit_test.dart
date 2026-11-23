@@ -5,6 +5,8 @@ import 'package:prompt_heist/core/api/api_client.dart';
 import 'package:prompt_heist/core/api/api_error.dart';
 import 'package:prompt_heist/core/api/player_api.dart';
 import 'package:prompt_heist/core/api/player_exit.dart';
+import 'package:prompt_heist/core/api/token_store.dart';
+import 'package:prompt_heist/core/realtime/socket_providers.dart';
 
 /// A Dio whose every call fails with [status] and [code].
 Dio _failing(int status, String code) {
@@ -90,5 +92,23 @@ void main() {
       ),
       isNull,
     );
+  });
+
+  test('player:kicked on the socket shows the kicked screen', () async {
+    final c = ProviderContainer();
+    addTearDown(c.dispose);
+    c.read(tokenProvider.notifier).set('ply_token');
+    final socket = c.read(playerSocketProvider);
+    expect(c.read(playerExitProvider), isNull);
+    socket.mockKick();
+    await Future<void>.delayed(Duration.zero);
+    expect(c.read(playerExitProvider), PlayerExit.kicked);
+  });
+
+  test('refusal codes map to the same exits as REST', () {
+    expect(playerExitFor('TOKEN_SUPERSEDED'), PlayerExit.kicked);
+    expect(playerExitFor('SESSION_CLOSED'), PlayerExit.cleared);
+    expect(playerExitFor('UNAUTHENTICATED'), PlayerExit.cleared);
+    expect(playerExitFor('ROUND_EXPIRED'), isNull);
   });
 }

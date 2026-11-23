@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_error.dart';
 import '../api/player_api.dart';
+import '../api/player_exit.dart';
 import '../api/token_store.dart';
 import 'game_socket.dart';
 
@@ -18,8 +19,19 @@ final playerSocketProvider = Provider<GameSocket>((ref) {
     token: token,
     onHydrate: () async => ref.invalidate(meProvider),
   );
+  // A refused handshake or player:kicked ends the session like a REST 401:
+  // the phone is cleared or shows the kicked screen, and stops (FE-07, FE-10).
+  final exit = ref.read(playerExitProvider.notifier);
+  final refused = socket.refused.listen(exit.report);
+  final kicked = socket.messages
+      .where((m) => m.event == 'player:kicked')
+      .listen((_) => exit.kicked());
   socket.connect();
-  ref.onDispose(socket.dispose);
+  ref.onDispose(() {
+    refused.cancel();
+    kicked.cancel();
+    socket.dispose();
+  });
   return socket;
 });
 

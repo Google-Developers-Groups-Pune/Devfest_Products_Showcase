@@ -30,6 +30,9 @@ class PlayerExitNotifier extends Notifier<PlayerExit?> {
     return null;
   }
 
+  /// `player:kicked` arrived on this device's socket.
+  void kicked() => state ??= PlayerExit.kicked;
+
   /// Reports an error code. Codes that do not end the session are ignored.
   void report(String code) {
     final exit = playerExitFor(code);
