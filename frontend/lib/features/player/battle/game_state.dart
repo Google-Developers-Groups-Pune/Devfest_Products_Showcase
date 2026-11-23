@@ -125,7 +125,6 @@ class GameState {
     this.locked = false,
     this.mySlot,
     this.prompts = const [],
-    this.superseded = false,
   });
 
   final bool ready;
@@ -137,7 +136,6 @@ class GameState {
   final bool locked;
   final int? mySlot;
   final List<PromptItem> prompts;
-  final bool superseded;
 
   GameState copyWith({
     bool? ready,
@@ -149,7 +147,6 @@ class GameState {
     bool? locked,
     int? mySlot,
     List<PromptItem>? prompts,
-    bool? superseded,
   }) => GameState(
     ready: ready ?? this.ready,
     phase: phase ?? this.phase,
@@ -160,7 +157,6 @@ class GameState {
     locked: locked ?? this.locked,
     mySlot: mySlot ?? this.mySlot,
     prompts: prompts ?? this.prompts,
-    superseded: superseded ?? this.superseded,
   );
 }
 
@@ -484,10 +480,6 @@ class GameNotifier extends Notifier<GameState> {
           'NETWORK_ERROR' => 'No connection. Tap retry.',
           _ => e.message,
         };
-
-        if (e.code == 'TOKEN_SUPERSEDED') {
-          state = state.copyWith(superseded: true);
-        }
       }
 
       _updateBy(

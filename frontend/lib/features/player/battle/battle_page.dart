@@ -1,12 +1,9 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../app/env.dart';
-import '../../../core/api/token_store.dart';
 import '../../../core/realtime/game_socket.dart';
 import '../../../core/realtime/socket_providers.dart';
-import '../../../core/storage/player_session.dart';
 import '../../../core/timer/countdown.dart';
 import '../../../core/widgets/widgets.dart';
 import '../widgets/player_ui.dart';
@@ -23,7 +20,6 @@ class BattlePage extends ConsumerStatefulWidget {
 class _BattlePageState extends ConsumerState<BattlePage> {
   final _text = TextEditingController();
   final _focus = FocusNode();
-  bool _left = false;
 
   @override
   void dispose() {
@@ -49,16 +45,6 @@ class _BattlePageState extends ConsumerState<BattlePage> {
 
   @override
   Widget build(BuildContext context) {
-    // Another device took over this player.
-    ref.listen<bool>(gameProvider.select((g) => g.superseded), (prev, now) {
-      if (now && !_left) {
-        _left = true;
-        forgetPlayerToken();
-        ref.read(tokenProvider.notifier).set(null);
-        context.go('/player/kicked');
-      }
-    });
-
     final game = ref.watch(gameProvider);
     final clock = ref.watch(countdownProvider);
     final socket = ref.watch(playerSocketProvider);

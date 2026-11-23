@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../core/api/player_exit.dart';
 import '../core/api/token_store.dart';
 import '../core/storage/player_session.dart';
 import '../core/widgets/app_background.dart';
@@ -21,6 +22,16 @@ class PromptHeistApp extends ConsumerWidget {
       forgetPlayerToken();
       ref.read(tokenProvider.notifier).set(null);
       router.go(AppRoutes.playerKicked);
+    });
+
+    // A 401 on any player screen ends the session there (FE-07).
+    ref.listen<PlayerExit?>(playerExitProvider, (prev, exit) {
+      if (exit == null) return;
+      forgetPlayerToken();
+      ref.read(tokenProvider.notifier).set(null);
+      router.go(
+        exit == PlayerExit.kicked ? AppRoutes.playerKicked : AppRoutes.player,
+      );
     });
 
     // The session phase decides the screen. This also keeps game state alive

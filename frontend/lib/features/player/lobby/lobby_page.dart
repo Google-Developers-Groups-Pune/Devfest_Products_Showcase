@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/env.dart';
-import '../../../core/api/api_error.dart';
 import '../../../core/api/token_store.dart';
 import '../../../core/realtime/socket_providers.dart';
 import '../../../core/storage/player_session.dart';
@@ -34,15 +33,6 @@ class _LobbyPageState extends ConsumerState<LobbyPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Dead sessions: SESSION_CLOSED clears the phone, TOKEN_SUPERSEDED = kicked.
-    ref.listen(meProvider, (prev, next) {
-      final e = next.error;
-      if (e is ApiException) {
-        if (e.code == 'SESSION_CLOSED') _leave('/player');
-        if (e.code == 'TOKEN_SUPERSEDED') _leave('/player/kicked');
-      }
-    });
-
     final lobby = ref.watch(lobbyProvider);
 
     // round:started moves to the battle with no button.
