@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:prompt_heist/core/api/api_client.dart';
 import 'package:prompt_heist/core/api/token_store.dart';
-import 'package:prompt_heist/core/mock/mock_world.dart';
+import 'package:prompt_heist/core/mock/mock_backend.dart';
 import 'package:prompt_heist/core/realtime/socket_providers.dart';
 import 'package:prompt_heist/features/player/battle/game_state.dart';
 
@@ -104,7 +104,7 @@ void main() {
 
   /// A socket event, delivered the way the mock /player socket relays it.
   Future<void> emit(String event, Map<String, dynamic> data) async {
-    MockWorld.events.add((event, data));
+    c.read(mockBackendProvider).world.events.add((event, data));
     // Events pass through two async streams; a zero timer runs after both.
     await Future<void>.delayed(Duration.zero);
   }

@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/env.dart';
 import '../../core/api/api_error.dart';
 import '../../core/download/download.dart';
+import '../../core/mock/mock_backend.dart';
 import '../../core/realtime/game_socket.dart';
 import 'controller_api.dart';
 import 'controller_auth.dart';
@@ -709,7 +711,12 @@ class ControllerNotifier extends Notifier<ControllerState> {
   }
 
   /// The `/controller` socket. Its first connect triggers the first hydrate.
-  GameSocket createSocket(String token) => GameSocket(namespace: '/controller', token: token, onHydrate: refresh);
+  GameSocket createSocket(String token) => GameSocket(
+    mock: Env.isMock ? ref.read(mockBackendProvider) : null,
+    namespace: '/controller',
+    token: token,
+    onHydrate: refresh,
+  );
 
   /// Full reload from the server.
   Future<void> refresh() async {

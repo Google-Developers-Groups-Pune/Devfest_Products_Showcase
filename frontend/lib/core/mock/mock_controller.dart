@@ -27,29 +27,29 @@ class MockError implements Exception {
 /// the dashboard) force the error paths: generation failure, an agent down,
 /// a disconnected phone, a tie at 100, no scores, a failed close, and a
 /// sign-in elsewhere.
-abstract final class MockController {
+class MockController {
   static const username = 'controller';
   static const password = 'devfest';
   static const _storeKey = 'mockController';
 
-  static final events = StreamController<(String, Object?)>.broadcast();
+  final events = StreamController<(String, Object?)>.broadcast();
 
   /// Overridable clock for tests.
-  static DateTime Function() clock = () => DateTime.now().toUtc();
+  DateTime Function() clock = () => DateTime.now().toUtc();
 
   /// Seconds the treasure generator takes in the mock (the real one: up to 40).
-  static int generationSeconds = 6;
+  int generationSeconds = 6;
 
   /// Seconds between auto-joining players after a session opens.
-  static int joinEverySeconds = 2;
+  int joinEverySeconds = 2;
 
-  static Json? _db;
-  static Timer? _ticker;
-  static final _rng = Random();
+  Json? _db;
+  Timer? _ticker;
+  final _rng = Random();
 
-  static Json get db => _db ??= _load();
+  Json get db => _db ??= _load();
 
-  static Json _fresh() => {
+  Json _fresh() => {
     'token': null,
     'failedLogins': <String>[],
     'event': {
@@ -77,7 +77,7 @@ abstract final class MockController {
     },
   };
 
-  static Json _load() {
+  Json _load() {
     final raw = sessionRead(_storeKey);
     if (raw != null) {
       try {
@@ -87,10 +87,10 @@ abstract final class MockController {
     return _fresh();
   }
 
-  static void _save() => sessionWrite(_storeKey, jsonEncode(db));
+  void _save() => sessionWrite(_storeKey, jsonEncode(db));
 
   /// Back to an empty event day. Tests call this in setUp.
-  static void reset() {
+  void reset() {
     _ticker?.cancel();
     _ticker = null;
     _db = _fresh();
@@ -98,31 +98,36 @@ abstract final class MockController {
   }
 
   /// False in tests, which call [tick] themselves.
-  static bool autoClock = true;
+  bool autoClock = true;
 
   /// Starts the background clock (app only, never in tests).
-  static void startClock() {
+  void dispose() {
+    stopClock();
+    events.close();
+  }
+
+  void startClock() {
     if (!autoClock) return;
     _ticker ??= Timer.periodic(const Duration(milliseconds: 500), (_) => tick());
   }
 
-  static void stopClock() {
+  void stopClock() {
     _ticker?.cancel();
     _ticker = null;
   }
 
-  static String _iso(DateTime t) => t.toUtc().toIso8601String();
-  static DateTime _at(Object? s) => DateTime.parse('$s');
+  String _iso(DateTime t) => t.toUtc().toIso8601String();
+  DateTime _at(Object? s) => DateTime.parse('$s');
 
-  static void _emit(String event, Object? data) => events.add((event, data));
+  void _emit(String event, Object? data) => events.add((event, data));
 
-  static Json get _event => db['event'] as Json;
-  static Json? get _session => db['session'] as Json?;
-  static Json get demo => db['demo'] as Json;
+  Json get _event => db['event'] as Json;
+  Json? get _session => db['session'] as Json?;
+  Json get demo => db['demo'] as Json;
 
-  static List<Json> _slots() => [for (final s in (_session?['slots'] as List? ?? const [])) s as Json];
+  List<Json> _slots() => [for (final s in (_session?['slots'] as List? ?? const [])) s as Json];
 
-  static void _audit(String action, String summary, {String? reason}) {
+  void _audit(String action, String summary, {String? reason}) {
     final list = db['audit'] as List;
     list.insert(0, {
       'id': 'aud_${list.length + 1}',
@@ -137,14 +142,14 @@ abstract final class MockController {
 
   // ------------------------------------------------------------------ demo
 
-  static void setDemo(String key, bool value) {
+  void setDemo(String key, bool value) {
     demo[key] = value;
     if (key == 'agentDown') _audit('AGENT_HEALTH', value ? 'Guard agent reported DOWN' : 'Guard agent back UP');
     _save();
   }
 
   /// Joins every open slot now.
-  static void fillPlayers() {
+  void fillPlayers() {
     final s = _session;
     if (s == null || s['phase'] != 'JOINING') return;
     for (final slot in _slots()) {
@@ -155,7 +160,7 @@ abstract final class MockController {
   }
 
   /// Toggles slot 2 between connected and disconnected.
-  static void toggleDisconnect() {
+  void toggleDisconnect() {
     final slot = _slots().where((s) => s['player'] != null).skip(1).firstOrNull;
     if (slot == null) return;
     final p = slot['player'] as Json;
@@ -167,7 +172,7 @@ abstract final class MockController {
   }
 
   /// Ends the running round now.
-  static void endRoundNow() {
+  void endRoundNow() {
     final s = _session;
     if (s == null || s['phase'] != 'PLAYING') return;
     (s['round'] as Json)['roundEndAt'] = _iso(clock());
@@ -175,7 +180,7 @@ abstract final class MockController {
   }
 
   /// Pretends someone signed in on another laptop.
-  static void kickController() {
+  void kickController() {
     db['token'] = null;
     _emit('controller:kicked', {'reason': 'SIGNED_IN_ELSEWHERE'});
     _save();
@@ -184,7 +189,7 @@ abstract final class MockController {
   // ------------------------------------------------------------------ clock
 
   /// Moves the simulation forward to [clock]. Safe to call any time.
-  static void tick() {
+  void tick() {
     final now = clock();
     final s = _session;
     var changed = false;
@@ -281,7 +286,7 @@ abstract final class MockController {
     ('Aman Sharma', 'DF-2026-9034'),
   ];
 
-  static void _join(Json slot) {
+  void _join(Json slot) {
     final ev = _event;
     final i = ((ev['sessionCounter'] as int) * 5 + (slot['slotNumber'] as int) - 1) % _people.length;
     final (name, id) = _people[i];
@@ -297,7 +302,7 @@ abstract final class MockController {
     slot['slotState'] = 'LOBBY';
   }
 
-  static void _afterJoin() {
+  void _afterJoin() {
     final s = _session!;
     final joined = _slots().where((x) => x['player'] != null).length;
     s['joinedCount'] = joined;
@@ -321,14 +326,14 @@ abstract final class MockController {
     });
   }
 
-  static String _stateForPhase(String phase) => switch (phase) {
+  String _stateForPhase(String phase) => switch (phase) {
     'PLAYING' => 'PLAYING',
     'RESULT_PENDING' => 'RESULT_PENDING',
     'RESULTS' => 'COMPLETE',
     _ => 'LOBBY',
   };
 
-  static void _setPhase(String phase) {
+  void _setPhase(String phase) {
     final s = _session!;
     final prev = s['phase'];
     s['phase'] = phase;
@@ -351,7 +356,7 @@ abstract final class MockController {
     ('The Peshwa Ledger', 'A ledger from Shaniwar Wada is said to list a forgotten treasury. Its keeper loves a good rhyme. (A simulated treasure.)', 'Convince the keeper with a rhyming couplet.', ['Rhyming couplet', 'Mentions the ledger', 'Under 30 words']),
   ];
 
-  static void _startGeneration() {
+  void _startGeneration() {
     final s = _session!;
     final n = (s['candidateCounter'] as int? ?? 0) + 1;
     s['candidateCounter'] = n;
@@ -363,7 +368,7 @@ abstract final class MockController {
     };
   }
 
-  static void _finishGeneration(Json cand) {
+  void _finishGeneration(Json cand) {
     if (demo['failNextGeneration'] == true) {
       demo['failNextGeneration'] = false;
       cand['status'] = 'FAILED';
@@ -402,7 +407,7 @@ abstract final class MockController {
     ('Guard ne salute maara!', 'SALUTE'),
   ];
 
-  static void _fakePrompt(DateTime now) {
+  void _fakePrompt(DateTime now) {
     final s = _session!;
     final round = s['round'] as Json;
     final stats = round['stats'] as Json;
@@ -472,7 +477,7 @@ abstract final class MockController {
     _emit('monitor:stats', stats);
   }
 
-  static void _endRound(DateTime now) {
+  void _endRound(DateTime now) {
     final s = _session!;
     final round = s['round'] as Json;
     _setPhase('RESULT_PENDING');
@@ -482,7 +487,7 @@ abstract final class MockController {
     _audit('ROUND_ENDED', 'Round ${round['roundNumber']} ended');
   }
 
-  static Json _computeResult() {
+  Json _computeResult() {
     final rows = <Json>[];
     for (final slot in _slots()) {
       final p = slot['player'] as Json?;
@@ -526,7 +531,7 @@ abstract final class MockController {
     };
   }
 
-  static void _endSession(String phase, {required bool nextOpened}) {
+  void _endSession(String phase, {required bool nextOpened}) {
     final s = _session!;
     _setPhase(phase);
     if (phase == 'DISCARDED') {
@@ -537,7 +542,7 @@ abstract final class MockController {
     db['session'] = null;
   }
 
-  static Json _openSession(int capacity, int duration) {
+  Json _openSession(int capacity, int duration) {
     final ev = _event;
     final n = (ev['sessionCounter'] as int) + 1;
     ev['sessionCounter'] = n;
@@ -569,7 +574,7 @@ abstract final class MockController {
     return _sessionCreated();
   }
 
-  static Json _sessionCreated() {
+  Json _sessionCreated() {
     final s = _session!;
     return {
       'session': _sessionSummary(s),
@@ -577,7 +582,7 @@ abstract final class MockController {
     };
   }
 
-  static Json _sessionSummary(Json s) => {
+  Json _sessionSummary(Json s) => {
     'id': s['id'],
     'phase': s['phase'],
     'capacity': s['capacity'],
@@ -586,7 +591,7 @@ abstract final class MockController {
     'createdAt': s['createdAt'],
   };
 
-  static List<Json> _publicSlots() => [
+  List<Json> _publicSlots() => [
     for (final x in _slots())
       {
         'slotNumber': x['slotNumber'],
@@ -604,7 +609,7 @@ abstract final class MockController {
 
   // ------------------------------------------------------------------ HTTP
 
-  static void _requireAuth(Map headers) {
+  void _requireAuth(Map headers) {
     final auth = '${headers['Authorization'] ?? headers['authorization'] ?? ''}';
     final token = db['token'];
     if (token == null || auth != 'Bearer $token') {
@@ -612,7 +617,7 @@ abstract final class MockController {
     }
   }
 
-  static Json _requireSession(String id, List<String> phases) {
+  Json _requireSession(String id, List<String> phases) {
     final s = _session;
     if (s == null || s['id'] != id) throw MockError(404, 'NOT_FOUND', 'Session not found.');
     if (!phases.contains(s['phase'])) {
@@ -621,13 +626,13 @@ abstract final class MockController {
     return s;
   }
 
-  static int? _positiveInt(Object? v) {
+  int? _positiveInt(Object? v) {
     if (v is int && v > 0) return v;
     return null;
   }
 
   /// Answers one request. Returns (status, body); body is a String for CSV.
-  static (int, Object?) handle(String method, String path, Map body, Map headers) {
+  (int, Object?) handle(String method, String path, Map body, Map headers) {
     tick();
     try {
       final result = _route(method, path, body, headers);
@@ -639,7 +644,7 @@ abstract final class MockController {
     }
   }
 
-  static (int, Object?) _route(String method, String path, Map body, Map headers) {
+  (int, Object?) _route(String method, String path, Map body, Map headers) {
     final now = clock();
     final seg = path.split('/').where((p) => p.isNotEmpty).toList(); // api, controller, ...
     final key = '$method ${seg.skip(2).join('/')}';
@@ -1001,7 +1006,7 @@ abstract final class MockController {
     throw MockError(404, 'NOT_FOUND', 'Not found in mock: $method $path');
   }
 
-  static bool _blockedWhileClosingFailed(String method, List<String> seg) {
+  bool _blockedWhileClosingFailed(String method, List<String> seg) {
     if (method == 'GET') return false;
     final rest = seg.skip(2).toList();
     if (rest.isEmpty) return false;
@@ -1015,12 +1020,12 @@ abstract final class MockController {
     };
   }
 
-  static bool _csvUpToDate() {
+  bool _csvUpToDate() {
     final ev = _event;
     return ev['csvExportedAt'] != null && ev['csvCovers'] == (ev['winners'] as List).length;
   }
 
-  static Json _hydrate() {
+  Json _hydrate() {
     final ev = _event;
     final s = _session;
     final t = s?['treasure'] as Json?;

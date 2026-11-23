@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/env.dart';
 import '../api/api_error.dart';
 import '../api/player_api.dart';
 import '../api/player_exit.dart';
 import '../api/token_store.dart';
+import '../mock/mock_backend.dart';
 import 'game_socket.dart';
 
 /// Hydrate data for the player. Refetched after every socket reconnect.
@@ -15,6 +17,7 @@ final meProvider = FutureProvider<Json>((ref) {
 final playerSocketProvider = Provider<GameSocket>((ref) {
   final token = ref.watch(tokenProvider);
   final socket = GameSocket(
+    mock: Env.isMock ? ref.read(mockBackendProvider) : null,
     namespace: '/player',
     token: token,
     onHydrate: () async => ref.invalidate(meProvider),
@@ -50,6 +53,7 @@ final displayStateProvider = FutureProvider<Json>(
 /// The public `/display` namespace. Needs no token.
 final displaySocketProvider = Provider<GameSocket>((ref) {
   final socket = GameSocket(
+    mock: Env.isMock ? ref.read(mockBackendProvider) : null,
     namespace: '/display',
     onHydrate: () async => ref.invalidate(displayStateProvider),
   );

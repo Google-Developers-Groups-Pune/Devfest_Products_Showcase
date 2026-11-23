@@ -6,11 +6,13 @@ import 'package:go_router/go_router.dart';
 import 'package:prompt_heist/app/app.dart';
 import 'package:prompt_heist/app/router.dart';
 import 'package:prompt_heist/core/api/token_store.dart';
-import 'package:prompt_heist/core/mock/mock_world.dart';
+import 'package:prompt_heist/core/mock/mock_backend.dart';
 
 /// Navigation that used to run from build() now runs from listeners.
 /// These drive the real pages against the in-app mock.
 void main() {
+  late ProviderContainer c;
+
   Future<GoRouter> pumpAsPlayer(WidgetTester tester) async {
     // The test font draws every glyph as a wide square, so some phone rows
     // overflow here though they fit on a phone. Only navigation is tested.
@@ -20,8 +22,7 @@ void main() {
       onError?.call(details);
     };
     addTearDown(() => FlutterError.onError = onError);
-    MockWorld.reset();
-    final c = ProviderContainer();
+    c = ProviderContainer();
     addTearDown(c.dispose);
     c.read(tokenProvider.notifier).set('mock_player_token');
     await tester.pumpWidget(
@@ -47,7 +48,7 @@ void main() {
     // The mock lobby script fills the lobby and starts the round at 14 s.
     await waitFor(tester, () => path(router) == AppRoutes.playerBattle);
     expect(path(router), AppRoutes.playerBattle);
-    MockWorld.reset(); // cancels the mock's 90 s round timer
+    c.read(mockBackendProvider).world.reset(); // cancels the 90 s round timer
   });
 
   testWidgets('a result that is not confirmed goes back to time up', (

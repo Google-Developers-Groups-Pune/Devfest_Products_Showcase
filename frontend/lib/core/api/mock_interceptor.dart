@@ -1,8 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../mock/mock_backend.dart';
 import '../mock/mock_controller.dart';
-import '../mock/mock_display.dart';
-import '../mock/mock_world.dart';
 
 /// Answers the contract endpoints locally in the mock flavour.
 /// Booth codes: "12" works, "99" is claimed, "00" = no open session.
@@ -10,6 +9,11 @@ import '../mock/mock_world.dart';
 /// Rejoin IDs: NONE, MANY, PLAYING, LOCKED, PENDING, DONE.
 /// Prompt words are listed in mock_world.dart ("offline" fails once here).
 class MockInterceptor extends Interceptor {
+  MockInterceptor(this.mock);
+
+  /// The in-app backend that answers every request.
+  final MockBackend mock;
+
   String _myLabel = 'Aman';
   final _offlineOnce = <String>{};
 
@@ -61,9 +65,9 @@ class MockInterceptor extends Interceptor {
 
     // Controller endpoints (FE-11 to FE-18, FE-27, FE-28).
     if (options.path.startsWith('/api/controller/')) {
-      MockController.startClock();
+      mock.controller.startClock();
       try {
-        final (status, data) = MockController.handle(
+        final (status, data) = mock.controller.handle(
           options.method,
           options.path,
           {...options.queryParameters, ...body},
@@ -79,7 +83,7 @@ class MockInterceptor extends Interceptor {
     if (options.method == 'GET' &&
         options.path.startsWith('/api/player/prompts/')) {
       final pid = options.path.split('/').last;
-      final found = MockWorld.prompts.where((e) => e['promptId'] == pid);
+      final found = mock.world.prompts.where((e) => e['promptId'] == pid);
       if (found.isEmpty) return fail(404, 'NOT_FOUND', 'Prompt not found.');
       final p = found.first;
       return ok({
@@ -146,8 +150,8 @@ class MockInterceptor extends Interceptor {
           );
         }
         _myLabel = name.split(' ').first;
-        MockWorld.reset(); // a fresh game for every join
-        MockWorld.myLabel = _myLabel;
+        mock.world.reset(); // a fresh game for every join
+        mock.world.myLabel = _myLabel;
         return ok({
           'playerToken': 'mock-player-token',
           'player': _player(),
@@ -181,10 +185,10 @@ class MockInterceptor extends Interceptor {
         });
 
       case 'GET /api/player/me':
-        return ok(MockWorld.me(_player()));
+        return ok(mock.world.me(_player()));
 
       case 'GET /api/player/result':
-        return ok(MockWorld.result());
+        return ok(mock.world.result());
 
       case 'POST /api/player/prompts':
         final ptext = (body['text'] ?? '').toString().trim();
@@ -198,17 +202,17 @@ class MockInterceptor extends Interceptor {
         if (ptext.length > 200) {
           return fail(422, 'PROMPT_TOO_LONG', 'That prompt is too long.');
         }
-        if (MockWorld.phase != 'PLAYING') {
+        if (mock.world.phase != 'PLAYING') {
           return fail(409, 'ROUND_NOT_PLAYING', 'No round is running.');
         }
-        if (MockWorld.locked) {
+        if (mock.world.locked) {
           return fail(
             409,
             'PLAYER_LOCKED',
             'You already unlocked the treasure.',
           );
         }
-        final pend = MockWorld.roundEnd;
+        final pend = mock.world.roundEnd;
         if (pend != null && DateTime.now().toUtc().isAfter(pend)) {
           return fail(409, 'ROUND_EXPIRED', 'Time is up.');
         }
@@ -221,11 +225,11 @@ class MockInterceptor extends Interceptor {
             ),
           );
         }
-        final (isNew, record) = MockWorld.submit(ptext, pkey);
+        final (isNew, record) = mock.world.submit(ptext, pkey);
         return ok(record, isNew ? 202 : 200);
 
       case 'GET /api/display/state':
-        return ok(MockDisplay.state());
+        return ok(mock.display.state());
     }
     fail(404, 'NOT_FOUND', 'Not found in mock: $key');
   }

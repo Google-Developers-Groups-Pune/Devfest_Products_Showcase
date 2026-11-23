@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import '../../app/env.dart';
+import '../mock/mock_backend.dart';
 import '../mock/mock_socket.dart';
 
 enum SocketStatus { connecting, connected, reconnecting }
@@ -17,6 +18,8 @@ class SocketMessage {
 /// After EVERY connect or reconnect, [onHydrate] runs so the app reloads
 /// its state over REST. Sockets only receive; all writes go through REST.
 ///
+/// [mock] is the in-app backend, passed only in the mock flavour.
+///
 /// The app only sees this interface. [RealGameSocket] talks Socket.IO; the
 /// mock flavour gets a [MockGameSocket], which keeps every mock-only member
 /// out of the real code. `Env.isMock` is a constant, so a real build drops
@@ -26,8 +29,9 @@ abstract class GameSocket {
     required String namespace,
     required Future<void> Function() onHydrate,
     String? token,
+    MockBackend? mock,
   }) => Env.isMock
-      ? MockGameSocket(namespace: namespace, onHydrate: onHydrate, token: token)
+      ? MockGameSocket(mock: mock!, namespace: namespace, onHydrate: onHydrate, token: token)
       : RealGameSocket(namespace: namespace, onHydrate: onHydrate, token: token);
 
   /// For subclasses.

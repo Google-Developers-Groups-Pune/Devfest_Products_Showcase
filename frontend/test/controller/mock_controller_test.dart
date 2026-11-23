@@ -7,25 +7,27 @@ import 'package:prompt_heist/core/mock/mock_controller.dart';
 void main() {
   late DateTime now;
   late Map<String, String> auth;
+  late MockController m;
 
   (int, dynamic) call(String method, String path, [Map body = const {}, Map<String, String> extra = const {}]) =>
-      MockController.handle(method, '/api/controller/$path', body, {...auth, ...extra});
+      m.handle(method, '/api/controller/$path', body, {...auth, ...extra});
 
   Matcher error(String code) => throwsA(isA<MockError>().having((e) => e.code, 'code', code));
 
   void advance(int seconds) {
     now = now.add(Duration(seconds: seconds));
-    MockController.tick();
+    m.tick();
   }
 
   Map hydrate() => call('GET', 'sessions/active').$2 as Map;
   String sessionId() => (hydrate()['session'] as Map)['id'] as String;
 
   setUp(() {
-    MockController.autoClock = false;
-    MockController.reset();
+    m = MockController()..autoClock = false;
+    m.reset();
+    addTearDown(m.dispose);
     now = DateTime.utc(2026, 12, 5, 10);
-    MockController.clock = () => now;
+    m.clock = () => now;
     auth = {};
     final (_, res) = call('POST', 'auth/login', {'username': 'controller', 'password': 'devfest'});
     auth = {'Authorization': 'Bearer ${(res as Map)['token']}'};
@@ -34,10 +36,10 @@ void main() {
   /// Opens a session, fills it, approves the treasure and every name.
   void toReady() {
     call('POST', 'sessions', {'capacity': 5, 'roundDurationSeconds': 90});
-    MockController.fillPlayers();
+    m.fillPlayers();
     final id = sessionId();
     call('POST', 'sessions/$id/treasure');
-    advance(MockController.generationSeconds);
+    advance(m.generationSeconds);
     final cand = (hydrate()['treasure'] as Map)['candidateId'];
     call('POST', 'treasure/$cand/approve');
     for (final s in hydrate()['slots'] as List) {
@@ -62,7 +64,7 @@ void main() {
 
   test('signing in again kicks the old dashboard', () async {
     final events = <String>[];
-    final sub = MockController.events.stream.listen((e) => events.add(e.$1));
+    final sub = m.events.stream.listen((e) => events.add(e.$1));
     call('POST', 'auth/login', {'username': 'controller', 'password': 'devfest'});
     await Future<void>.delayed(Duration.zero);
     expect(events, contains('controller:kicked'));
@@ -84,14 +86,14 @@ void main() {
     call('POST', 'sessions', {'capacity': 5});
     final id = sessionId();
     expect(() => call('POST', 'sessions/$id/treasure'), error('PLAYERS_NOT_JOINED'));
-    MockController.fillPlayers();
-    MockController.setDemo('failNextGeneration', true);
+    m.fillPlayers();
+    m.setDemo('failNextGeneration', true);
     call('POST', 'sessions/$id/treasure');
     expect(() => call('POST', 'sessions/$id/treasure'), error('GENERATION_IN_PROGRESS'));
-    advance(MockController.generationSeconds);
+    advance(m.generationSeconds);
     expect((hydrate()['treasure'] as Map)['status'], 'FAILED');
     call('POST', 'sessions/$id/treasure'); // Retry
-    advance(MockController.generationSeconds);
+    advance(m.generationSeconds);
     final t = hydrate()['treasure'] as Map;
     expect(t['status'], 'READY');
     expect(t['imageUrl'], isNotEmpty);
@@ -99,26 +101,26 @@ void main() {
 
   test('reject twice, approve once', () {
     call('POST', 'sessions', {'capacity': 5});
-    MockController.fillPlayers();
+    m.fillPlayers();
     final id = sessionId();
     call('POST', 'sessions/$id/treasure');
     expect(() => call('POST', 'treasure/cnd_1/approve'), error('CANDIDATE_NOT_READY'));
     for (var i = 1; i <= 2; i++) {
-      advance(MockController.generationSeconds);
+      advance(m.generationSeconds);
       final (_, res) = call('POST', 'treasure/cnd_$i/reject');
       expect((res as Map)['rejectedCandidateId'], 'cnd_$i');
     }
-    advance(MockController.generationSeconds);
+    advance(m.generationSeconds);
     call('POST', 'treasure/cnd_3/approve');
     expect((hydrate()['session'] as Map)['phase'], 'READY');
   });
 
   test('start: names, connection and agents each block it', () {
     call('POST', 'sessions', {'capacity': 5});
-    MockController.fillPlayers();
+    m.fillPlayers();
     final id = sessionId();
     call('POST', 'sessions/$id/treasure');
-    advance(MockController.generationSeconds);
+    advance(m.generationSeconds);
     call('POST', 'treasure/cnd_1/approve');
     expect(() => call('POST', 'sessions/$id/start'), error('NAMES_NOT_REVIEWED'));
 
@@ -131,14 +133,14 @@ void main() {
       call('POST', 'players/${((s as Map)['player'] as Map)['id']}/name-review', {'decision': 'APPROVED'});
     }
 
-    MockController.toggleDisconnect();
+    m.toggleDisconnect();
     expect(() => call('POST', 'sessions/$id/start'), error('PLAYERS_NOT_READY'));
-    MockController.toggleDisconnect();
-    MockController.setDemo('agentDown', true);
+    m.toggleDisconnect();
+    m.setDemo('agentDown', true);
     expect(() => call('POST', 'sessions/$id/start'), throwsA(isA<MockError>().having((e) => e.status, 'status', 503)));
     final health = call('GET', 'health/agents').$2 as Map;
     expect(health['allHealthy'], false);
-    MockController.setDemo('agentDown', false);
+    m.setDemo('agentDown', false);
     expect(call('POST', 'sessions/$id/start').$1, 200);
     expect((hydrate()['session'] as Map)['phase'], 'PLAYING');
   });
@@ -166,14 +168,14 @@ void main() {
   });
 
   test('tie at 100: the earlier submission wins and the result says why', () {
-    MockController.setDemo('tieAt100', true);
+    m.setDemo('tieAt100', true);
     toReady();
     final id = sessionId();
     call('POST', 'sessions/$id/start');
-    for (var i = 0; i < 40 && MockController.demo['tieAt100'] == true; i++) {
+    for (var i = 0; i < 40 && m.demo['tieAt100'] == true; i++) {
       advance(5);
     }
-    MockController.endRoundNow();
+    m.endRoundNow();
     advance(2);
     final rid = (hydrate()['round'] as Map)['roundId'];
     final r = call('GET', 'rounds/$rid/result').$2 as Map;
@@ -185,11 +187,11 @@ void main() {
   });
 
   test('no scores: cannot confirm, discard needs a reason and frees the session', () {
-    MockController.setDemo('noScores', true);
+    m.setDemo('noScores', true);
     toReady();
     final id = sessionId();
     call('POST', 'sessions/$id/start');
-    MockController.endRoundNow();
+    m.endRoundNow();
     advance(2);
     final rid = (hydrate()['round'] as Map)['roundId'];
     final r = call('GET', 'rounds/$rid/result').$2 as Map;
@@ -202,14 +204,14 @@ void main() {
   });
 
   test('confirm, then Next group twice with one key opens one session', () {
-    MockController.setDemo('tieAt100', true); // makes sure somebody scores
+    m.setDemo('tieAt100', true); // makes sure somebody scores
     toReady();
     final id = sessionId();
     call('POST', 'sessions/$id/start');
     for (var i = 0; i < 10; i++) {
       advance(3);
     }
-    MockController.endRoundNow();
+    m.endRoundNow();
     advance(2);
     final rid = (hydrate()['round'] as Map)['roundId'];
     expect((call('GET', 'rounds/$rid/result').$2 as Map)['canConfirm'], true);
@@ -242,7 +244,7 @@ void main() {
     expect(csv.trim(), 'full_name,entrance_id,round_number,confirmed_at,winning_score,treasure_title,treasure_id');
     expect(() => call('POST', 'event/close', {'confirmation': 'nope'}), error('CONFIRMATION_REQUIRED'));
 
-    MockController.setDemo('failNextClose', true);
+    m.setDemo('failNextClose', true);
     expect(call('POST', 'event/close', {'confirmation': 'CLOSE EVENT'}).$1, 202);
     advance(3);
     final failed = call('GET', 'event/status').$2 as Map;

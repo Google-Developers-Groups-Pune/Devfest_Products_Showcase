@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/env.dart';
 import 'api_error.dart';
+import '../mock/mock_backend.dart';
 import 'mock_interceptor.dart';
 import 'token_store.dart';
 
@@ -29,7 +30,7 @@ final dioProvider = Provider<Dio>((ref) {
     ),
   );
 
-  if (Env.isMock) dio.interceptors.add(MockInterceptor());
+  if (Env.isMock) dio.interceptors.add(MockInterceptor(ref.read(mockBackendProvider)));
   return dio;
 });
 

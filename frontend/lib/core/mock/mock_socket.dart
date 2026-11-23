@@ -1,14 +1,17 @@
 import 'dart:async';
 
 import '../realtime/game_socket.dart';
-import 'mock_controller.dart';
-import 'mock_display.dart';
+import 'mock_backend.dart';
 import 'mock_world.dart';
 
 /// Mock flavour only: a [GameSocket] fed by the in-app mocks instead of a
 /// server. Everything mock-only lives here, never in the real socket.
 class MockGameSocket extends GameSocket {
-  MockGameSocket({required super.namespace, required super.onHydrate, super.token}) : super.base();
+  MockGameSocket({required this.mock, required super.namespace, required super.onHydrate, super.token})
+    : super.base();
+
+  /// The in-app backend this socket listens to.
+  final MockBackend mock;
 
   // Test a wrong phone clock with: --dart-define=MOCK_CLOCK_SKEW=120
   static const _skew = Duration(seconds: int.fromEnvironment('MOCK_CLOCK_SKEW', defaultValue: 0));
@@ -24,19 +27,19 @@ class MockGameSocket extends GameSocket {
     _worldSub?.cancel();
     if (namespace == '/display') {
       // The scripted audience show sends its own timer:sync.
-      _worldSub = MockDisplay.events.stream.listen((e) => emit(e.$1, e.$2));
+      _worldSub = mock.display.events.stream.listen((e) => emit(e.$1, e.$2));
       Future<void>.delayed(Duration.zero, connected);
       return;
     }
     if (namespace == '/controller') {
       // The mock booth sends its own timer:sync while a round runs.
-      MockController.startClock();
-      _worldSub = MockController.events.stream.listen((e) => emit(e.$1, e.$2));
+      mock.controller.startClock();
+      _worldSub = mock.controller.events.stream.listen((e) => emit(e.$1, e.$2));
       Future<void>.delayed(Duration.zero, connected);
       return;
     }
     // Prompt events from the mock world arrive like real socket events.
-    _worldSub = MockWorld.events.stream.listen((e) => emit(e.$1, e.$2));
+    _worldSub = mock.world.events.stream.listen((e) => emit(e.$1, e.$2));
     Future<void>.delayed(Duration.zero, connected);
     Future<void>.delayed(const Duration(milliseconds: 300), _sendSync);
     _syncTimer = Timer.periodic(const Duration(seconds: 3), (_) => _sendSync());
@@ -44,7 +47,7 @@ class MockGameSocket extends GameSocket {
 
   void _sendSync() {
     final now = DateTime.now().toUtc();
-    var end = MockWorld.roundEnd;
+    var end = mock.world.roundEnd;
     if (end == null) {
       // /dev screen only: a free-running 90 second round.
       if (_freeRunEnd == null || now.isAfter(_freeRunEnd!.add(const Duration(seconds: 5)))) {
@@ -87,14 +90,14 @@ class MockGameSocket extends GameSocket {
       });
     });
     at(14, () {
-      MockWorld.startRound();
+      mock.world.startRound();
       final now = DateTime.now().toUtc();
       emit('round:started', {
         'roundId': 'rnd_1',
         'roundNumber': 1,
         'durationSeconds': MockWorld.roundSeconds,
         'startedAt': now.add(_skew).toIso8601String(),
-        'roundEndAt': MockWorld.roundEnd!.add(_skew).toIso8601String(),
+        'roundEndAt': mock.world.roundEnd!.add(_skew).toIso8601String(),
         'serverNow': now.add(_skew).toIso8601String(),
         'treasure': MockWorld.treasure,
       });

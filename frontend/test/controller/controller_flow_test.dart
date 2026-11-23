@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:prompt_heist/core/mock/mock_backend.dart';
 import 'package:prompt_heist/core/mock/mock_controller.dart';
 import 'package:prompt_heist/core/storage/controller_session.dart';
 import 'package:prompt_heist/features/controller/controller_shell.dart';
@@ -10,13 +11,17 @@ import 'package:prompt_heist/features/controller/controller_state.dart';
 /// Drives the real Controller screens against the in-app mock.
 void main() {
   late DateTime now;
+  late ProviderContainer container;
+  late MockController mock;
 
   setUp(() {
-    MockController.autoClock = false;
-    MockController.reset();
+    container = ProviderContainer();
+    addTearDown(container.dispose);
+    mock = container.read(mockBackendProvider).controller..autoClock = false;
+    mock.reset();
     forgetControllerSession();
     now = DateTime.now().toUtc();
-    MockController.clock = () => now;
+    mock.clock = () => now;
     ControllerNotifier.now = () => now;
   });
 
@@ -30,7 +35,7 @@ void main() {
     tester.view.physicalSize = const Size(1600, 1400);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: ControllerShell())));
+    await tester.pumpWidget(UncontrolledProviderScope(container: container, child: const MaterialApp(home: ControllerShell())));
     await settle(tester);
   }
 
@@ -61,7 +66,7 @@ void main() {
     expect(find.text('Hand out booth codes'), findsOneWidget);
     expect(find.textContaining("can't start early"), findsOneWidget);
 
-    MockController.fillPlayers();
+    mock.fillPlayers();
     await settle(tester);
     expect(find.text('5 of 5 players joined'), findsOneWidget);
 
@@ -81,8 +86,8 @@ void main() {
     await tester.tap(find.text('Generate treasure'));
     await settle(tester);
     expect(find.text('The Treasure Generator is drafting a candidate'), findsOneWidget);
-    now = now.add(Duration(seconds: MockController.generationSeconds));
-    MockController.tick();
+    now = now.add(Duration(seconds: mock.generationSeconds));
+    mock.tick();
     await settle(tester);
     expect(find.text('Passed content filter'), findsOneWidget);
     // The image cannot load in tests, so Approve stays disabled.
@@ -93,7 +98,7 @@ void main() {
   testWidgets('signed in elsewhere shows the message, then the login card', (tester) async {
     await pumpShell(tester);
     await signIn(tester);
-    MockController.kickController();
+    mock.kickController();
     await settle(tester);
     expect(find.text('Signed in on another device'), findsOneWidget);
     await tester.tap(find.text('Back to sign in'));
@@ -104,7 +109,7 @@ void main() {
   testWidgets('a 401 sends the Controller back to login', (tester) async {
     await pumpShell(tester);
     await signIn(tester);
-    MockController.db['token'] = 'revoked';
+    mock.db['token'] = 'revoked';
     await tester.tap(find.text('Open session'));
     await settle(tester);
     expect(find.text('Sign in to run the booth'), findsOneWidget);
@@ -131,7 +136,7 @@ void main() {
     expect(find.text('Closing the event day…'), findsOneWidget);
     expect(find.text('Closing'), findsOneWidget, reason: 'header chip shows the event status');
     now = now.add(const Duration(seconds: 3));
-    MockController.tick();
+    mock.tick();
     await settle(tester);
     expect(find.text('Event day closed'), findsWidgets);
   });

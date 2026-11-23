@@ -55,35 +55,40 @@ class MockDisplay {
     (3, 'Rain on Pune roofs, a vault below, will you open?', 66, 'Achha hai, par polite kahan hai? 😐', 'NEUTRAL'),
   ];
 
-  static final events = StreamController<(String, Object?)>.broadcast(
+  late final events = StreamController<(String, Object?)>.broadcast(
     onListen: _start,
     onCancel: _stop,
   );
 
-  static String phase = 'SETUP';
-  static int joinedCount = 0;
-  static bool revealed = false;
-  static DateTime? roundEnd;
-  static final _rows = <int, Map<String, dynamic>>{};
-  static final _unlocked = <String>[];
-  static Map<String, dynamic>? _result;
+  void dispose() {
+    _stop();
+    events.close();
+  }
 
-  static final _timers = <Timer>[];
-  static Timer? _sync;
-  static int _session = 0;
+  String phase = 'SETUP';
+  int joinedCount = 0;
+  bool revealed = false;
+  DateTime? roundEnd;
+  final _rows = <int, Map<String, dynamic>>{};
+  final _unlocked = <String>[];
+  Map<String, dynamic>? _result;
 
-  static String get _sessionId => 'ses_$_session';
-  static String _now() => DateTime.now().toUtc().toIso8601String();
+  final _timers = <Timer>[];
+  Timer? _sync;
+  int _session = 0;
 
-  static void _emit(String event, Map<String, dynamic> data) =>
+  String get _sessionId => 'ses_$_session';
+  String _now() => DateTime.now().toUtc().toIso8601String();
+
+  void _emit(String event, Map<String, dynamic> data) =>
       events.add((event, data));
 
-  static void _start() {
+  void _start() {
     final start = Uri.base.queryParameters['start'];
     _runShow(skipTo: start);
   }
 
-  static void _stop() {
+  void _stop() {
     for (final t in _timers) {
       t.cancel();
     }
@@ -92,7 +97,7 @@ class MockDisplay {
     _sync = null;
   }
 
-  static List<Map<String, dynamic>> _publicPlayers() => [
+  List<Map<String, dynamic>> _publicPlayers() => [
     for (final p in _players)
       {
         'slotNumber': p.$1,
@@ -106,7 +111,7 @@ class MockDisplay {
   ];
 
   /// GET /api/display/state
-  static Map<String, dynamic> state() {
+  Map<String, dynamic> state() {
     final end = roundEnd;
     final open = phase != 'SETUP';
     return {
@@ -131,7 +136,7 @@ class MockDisplay {
 
   // ---------------- the show ----------------
 
-  static void _runShow({String? skipTo}) {
+  void _runShow({String? skipTo}) {
     _stop();
     final steps = <(double, String?, void Function())>[];
     var t = 0.0;
@@ -192,7 +197,7 @@ class MockDisplay {
     }
   }
 
-  static void _reset() {
+  void _reset() {
     phase = 'SETUP';
     joinedCount = 0;
     revealed = false;
@@ -203,7 +208,7 @@ class MockDisplay {
     _sync?.cancel();
   }
 
-  static void _phase(String next) {
+  void _phase(String next) {
     final prev = phase;
     phase = next;
     _emit('phase:changed', {
@@ -214,7 +219,7 @@ class MockDisplay {
     });
   }
 
-  static void _openSession() {
+  void _openSession() {
     _session++;
     _reset();
     phase = 'JOINING';
@@ -225,18 +230,18 @@ class MockDisplay {
     });
   }
 
-  static void _join(int n) {
+  void _join(int n) {
     joinedCount = n;
     // The display gets counts only, never names, until players:revealed.
     _emit('player:joined', {'joinedCount': n, 'capacity': 5});
   }
 
-  static void _reveal() {
+  void _reveal() {
     revealed = true;
     _emit('players:revealed', {'players': _publicPlayers()});
   }
 
-  static void _startRound() {
+  void _startRound() {
     final now = DateTime.now().toUtc();
     roundEnd = now.add(const Duration(seconds: roundSeconds));
     for (final p in _players) {
@@ -262,9 +267,9 @@ class MockDisplay {
     });
   }
 
-  static int _seq = 0;
+  int _seq = 0;
 
-  static void _feedUpdate((int, String, int, String, String) f) {
+  void _feedUpdate((int, String, int, String, String) f) {
     final (slot, text, score, reaction, expression) = f;
     final row = _rows[slot];
     if (phase != 'PLAYING' || row == null || row['state'] == 'LOCKED_100') {
@@ -302,7 +307,7 @@ class MockDisplay {
     }
   }
 
-  static void _connection(int slot, String connection) {
+  void _connection(int slot, String connection) {
     final row = _rows[slot];
     if (row == null) return;
     row['connection'] = connection;
@@ -314,13 +319,13 @@ class MockDisplay {
     });
   }
 
-  static void _endRound() {
+  void _endRound() {
     _sync?.cancel();
     phase = 'RESULT_PENDING';
     _emit('round:ended', {'roundId': 'rnd_$_session', 'endedAt': _now()});
   }
 
-  static void _provisional() {
+  void _provisional() {
     final top = _ranked().first;
     _result = {
       'status': 'PROVISIONAL',
@@ -329,20 +334,20 @@ class MockDisplay {
     _emit('result:provisional', {'roundId': 'rnd_$_session', 'winner': _result!['winner']});
   }
 
-  static void _discard() {
+  void _discard() {
     _result = null;
     phase = 'DISCARDED';
     _emit('round:discarded', {'sessionId': _sessionId, 'roundId': 'rnd_$_session'});
   }
 
-  static List<Map<String, dynamic>> _ranked() => _publicPlayers()
+  List<Map<String, dynamic>> _ranked() => _publicPlayers()
     ..sort(
       (a, b) => ((b['bestScore'] as int?) ?? -1).compareTo(
         (a['bestScore'] as int?) ?? -1,
       ),
     );
 
-  static void _confirm() {
+  void _confirm() {
     final ranked = _publicPlayers()
       ..sort(
         (a, b) => ((b['bestScore'] as int?) ?? -1).compareTo(
@@ -371,7 +376,7 @@ class MockDisplay {
     _emit('result:confirmed', {'roundId': 'rnd_$_session', ..._result!});
   }
 
-  static void _close() {
+  void _close() {
     phase = 'CLOSED';
     _emit('session:closed', {
       'sessionId': _sessionId,

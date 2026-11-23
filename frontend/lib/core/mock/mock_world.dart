@@ -4,19 +4,19 @@ import 'dart:async';
 /// Prompt words: "unlock" = 100 and locks you, "finish" = end the round now,
 /// "discard" = round cancelled, "block", "fail", "silent" (no socket event).
 class MockWorld {
-  static String phase =
+  String phase =
       'JOINING'; // JOINING PLAYING RESULT_PENDING RESULTS DISCARDED CLOSED
-  static DateTime? roundEnd;
+  DateTime? roundEnd;
   static const roundSeconds = 90;
-  static String myLabel = 'Aman';
-  static bool locked = false;
-  static int? best;
-  static int _seq = 0;
-  static final prompts = <Map<String, dynamic>>[];
-  static final _byKey = <String, Map<String, dynamic>>{};
-  static final _timers = <Timer>[];
-  static Map<String, dynamic>? _result;
-  static final events = StreamController<(String, Object?)>.broadcast();
+  String myLabel = 'Aman';
+  bool locked = false;
+  int? best;
+  int _seq = 0;
+  final prompts = <Map<String, dynamic>>[];
+  final _byKey = <String, Map<String, dynamic>>{};
+  final _timers = <Timer>[];
+  Map<String, dynamic>? _result;
+  final events = StreamController<(String, Object?)>.broadcast();
 
   static const treasure = {
     'treasureId': 'cnd_1',
@@ -28,7 +28,12 @@ class MockWorld {
     'imageUrl': '',
   };
 
-  static void reset() {
+  void dispose() {
+    reset();
+    events.close();
+  }
+
+  void reset() {
     for (final t in _timers) {
       t.cancel();
     }
@@ -43,7 +48,7 @@ class MockWorld {
     _byKey.clear();
   }
 
-  static void startRound() {
+  void startRound() {
     reset();
     phase = 'PLAYING';
     roundEnd = DateTime.now().toUtc().add(
@@ -53,7 +58,7 @@ class MockWorld {
   }
 
   /// Time is up (also used by the "finish" prompt word).
-  static void endRound() {
+  void endRound() {
     if (phase != 'PLAYING') return;
     phase = 'RESULT_PENDING';
     roundEnd = DateTime.now().toUtc();
@@ -64,7 +69,7 @@ class MockWorld {
     _timers.add(Timer(const Duration(seconds: 4), _confirm));
   }
 
-  static void _confirm() {
+  void _confirm() {
     if (phase != 'RESULT_PENDING') return;
     final others = [
       ('Rohan', 3, 'YELLOW_DIAMOND', 73),
@@ -122,7 +127,7 @@ class MockWorld {
     _timers.add(Timer(const Duration(seconds: 25), close));
   }
 
-  static void close() {
+  void close() {
     phase = 'CLOSED';
     events.add((
       'session:closed',
@@ -130,7 +135,7 @@ class MockWorld {
     ));
   }
 
-  static void discard() {
+  void discard() {
     if (phase != 'PLAYING' && phase != 'RESULT_PENDING') return;
     for (final t in _timers) {
       t.cancel();
@@ -143,10 +148,10 @@ class MockWorld {
     ));
   }
 
-  static Map<String, dynamic> result() => _result ?? {'status': 'PENDING'};
+  Map<String, dynamic> result() => _result ?? {'status': 'PENDING'};
 
   /// GET /api/player/me
-  static Map<String, dynamic> me(Map<String, dynamic> player) {
+  Map<String, dynamic> me(Map<String, dynamic> player) {
     final end = roundEnd;
     final playerState = switch (phase) {
       'PLAYING' => locked ? 'LOCKED_100' : 'PLAYING',
@@ -186,7 +191,7 @@ class MockWorld {
   }
 
   /// Same key twice returns the stored prompt (isNew = false).
-  static (bool, Map<String, dynamic>) submit(String text, String key) {
+  (bool, Map<String, dynamic>) submit(String text, String key) {
     final known = _byKey[key];
     if (known != null) return (false, known);
     _seq++;
@@ -213,7 +218,7 @@ class MockWorld {
     return (true, record);
   }
 
-  static void _finish(String id, String text) {
+  void _finish(String id, String text) {
     final matches = prompts.where((e) => e['promptId'] == id);
     if (matches.isEmpty) return; // the game was reset meanwhile
     final p = matches.first;
