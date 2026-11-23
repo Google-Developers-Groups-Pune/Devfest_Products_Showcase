@@ -3,8 +3,9 @@ import 'dart:convert';
 import 'dart:math';
 
 import '../storage/session_store.dart';
+import '../json.dart';
+export '../json.dart';
 
-typedef Json = Map<String, dynamic>;
 
 /// An error the mock answers with, in the contract's error envelope.
 class MockError implements Exception {
@@ -305,7 +306,17 @@ abstract final class MockController {
       'capacity': s['capacity'],
       'players': [
         for (final x in _slots())
-          if (x['player'] != null) {'slotNumber': x['slotNumber'], 'shape': x['shape'], ...(x['player'] as Json)},
+          // ControllerPlayerListItem from the contract: no id, no nameReview.
+          if (x['player'] case final Json p)
+            {
+              'slotNumber': x['slotNumber'],
+              'label': p['label'],
+              'shape': x['shape'],
+              'connection': p['connection'],
+              'state': x['slotState'],
+              'fullName': p['fullName'],
+              'entranceId': p['entranceId'],
+            },
       ],
     });
   }

@@ -39,7 +39,7 @@ class CtlPlayer {
   bool get connected => connection == 'CONNECTED';
 
   factory CtlPlayer.fromJson(Json j) => CtlPlayer(
-    id: '${j['id']}',
+    id: '${j['id'] ?? ''}',
     label: '${j['label'] ?? ''}',
     fullName: '${j['fullName'] ?? ''}',
     entranceId: '${j['entranceId'] ?? ''}',
@@ -559,9 +559,22 @@ class ControllerState {
         for (final p in players) {
           final n = _int(p['slotNumber']);
           if (n == null) continue;
+          // The Controller event has no id or nameReview, so merge it into
+          // the player we already have. A new player gets its id on refresh.
           next = [
             for (final s in next)
-              s.slotNumber == n ? s.copyWith(slotState: s.joined ? s.slotState : 'LOBBY', player: CtlPlayer.fromJson(p)) : s,
+              s.slotNumber == n
+                  ? s.copyWith(
+                      slotState: s.joined ? s.slotState : 'LOBBY',
+                      player:
+                          s.player?.copyWith(
+                            label: _str(p['label']),
+                            fullName: _str(p['fullName']),
+                            connection: _str(p['connection']),
+                          ) ??
+                          CtlPlayer.fromJson(p),
+                    )
+                  : s,
           ];
         }
         return copyWith(
@@ -651,7 +664,7 @@ String agentName(String key) => switch (key) {
   'image' => 'Image',
   'filter' => 'Filter',
   'guard' => 'Guard',
-  'emoji' => 'Prompt and Emoji',
+  'emoji' => 'Emoji',
   _ => key,
 };
 
@@ -680,11 +693,15 @@ class ControllerNotifier extends Notifier<ControllerState> {
     final socket = createSocket(token);
     final sub = socket.messages.listen((m) => _onEvent(m.event, m.data));
     final statusSub = socket.status.listen((s) => state = state.copyWith(connected: s == SocketStatus.connected));
+    // The /controller namespace refuses a signed-out token with
+    // UNAUTHENTICATED: same as a REST 401, back to the login card.
+    final refusedSub = socket.refused.listen((_) => ref.read(controllerAuthProvider.notifier).expired());
     socket.connect();
 
     ref.onDispose(() {
       sub.cancel();
       statusSub.cancel();
+      refusedSub.cancel();
       _resultRetry?.cancel();
       socket.dispose();
     });
@@ -750,6 +767,11 @@ class ControllerNotifier extends Notifier<ControllerState> {
         return;
       case 'result:provisional':
         loadResult();
+        return;
+      case 'player:joined':
+        state = state.apply(event, d, now());
+        // A player we had not seen before has no id until the next hydrate.
+        if (state.slots.any((s) => s.player?.id.isEmpty ?? false)) refresh();
         return;
       case 'player:connection':
         state = state.apply(event, d, now());
@@ -836,15 +858,18 @@ class ControllerNotifier extends Notifier<ControllerState> {
     }
   }
 
-  /// Runs one Controller action. On a 404 or 409 the screen is out of date,
-  /// so it reloads. The error is rethrown for the screen to show.
-  Future<T> _act<T>(Future<T> Function() action) async {
+  /// Runs one Controller action, then reloads. On any error it first puts
+  /// back [previous] (when the action changed the screen up front), so a
+  /// failed call never leaves a screen the server did not agree to. The
+  /// error is rethrown for the screen to show.
+  Future<T> _act<T>(Future<T> Function() action, {ControllerState? previous}) async {
     try {
       final res = await action();
       unawaited(refresh());
       return res;
-    } on ApiException catch (e) {
-      if (e.statusCode == 404 || e.statusCode == 409) unawaited(refresh());
+    } catch (_) {
+      if (previous != null && ref.mounted) state = previous;
+      unawaited(refresh());
       rethrow;
     }
   }
@@ -856,23 +881,26 @@ class ControllerNotifier extends Notifier<ControllerState> {
   Future<void> setDuration(int seconds) async {
     final s = state.session;
     if (s == null) return;
+    final previous = state;
     state = state.copyWith(session: s.copyWith(roundDurationSeconds: seconds));
-    await _act(() => _api.setDuration(s.id, seconds));
+    await _act(() => _api.setDuration(s.id, seconds), previous: previous);
   }
 
   Future<void> abandon(String reason) => _act(() => _api.closeSession(_sessionId, reason: reason));
 
   Future<void> generateTreasure() async {
+    final previous = state;
     state = state.copyWith(treasure: const CtlTreasure(candidateId: '', status: 'GENERATING'));
-    await _act(() => _api.generateTreasure(_sessionId));
+    await _act(() => _api.generateTreasure(_sessionId), previous: previous);
   }
 
   Future<void> approveTreasure() => _act(() => _api.approveTreasure(state.treasure!.candidateId));
 
   Future<void> rejectTreasure() async {
     final id = state.treasure!.candidateId;
+    final previous = state;
     state = state.copyWith(treasure: CtlTreasure(candidateId: id, status: 'GENERATING'));
-    await _act(() => _api.rejectTreasure(id));
+    await _act(() => _api.rejectTreasure(id), previous: previous);
   }
 
   Future<void> approveName(String playerId) => _act(() => _api.approveName(playerId));

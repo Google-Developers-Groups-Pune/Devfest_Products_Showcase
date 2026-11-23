@@ -1,10 +1,6 @@
-import 'dart:async';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../app/env.dart';
-import '../../core/mock/mock_controller.dart';
 import '../../core/widgets/widgets.dart';
 import 'controller_auth.dart';
 import 'controller_state.dart';
@@ -133,7 +129,6 @@ class _Header extends ConsumerWidget {
           StatusChip(label, tone: tone),
           if (!state.connected) const StatusChip('Reconnecting…', tone: Tone.warning, icon: Icons.wifi_off),
           const Spacer(),
-          if (Env.isMock) _DemoMenu(state: state),
           if (wide) Flexible(child: Text(username, overflow: TextOverflow.ellipsis, style: TextStyle(color: c.textSecondary))),
           TextButton(
             onPressed: () => ref.read(controllerAuthProvider.notifier).signOut(),
@@ -141,58 +136,6 @@ class _Header extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Mock flavour only: forces the paths the QE checks need.
-class _DemoMenu extends ConsumerWidget {
-  const _DemoMenu({required this.state});
-  final ControllerState state;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final demo = MockController.demo;
-    void run(VoidCallback f) {
-      f();
-      unawaited(ref.read(controllerProvider.notifier).refresh());
-    }
-
-    CheckedPopupMenuItem<VoidCallback> toggle(String key, String text) => CheckedPopupMenuItem(
-      value: () => run(() => MockController.setDemo(key, demo[key] != true)),
-      checked: demo[key] == true,
-      child: Text(text),
-    );
-
-    return PopupMenuButton<VoidCallback>(
-      tooltip: 'Mock controls',
-      icon: Icon(Icons.science_outlined, color: context.hc.accent),
-      onSelected: (f) => f(),
-      itemBuilder: (_) => [
-        PopupMenuItem(
-          value: () => run(MockController.fillPlayers),
-          enabled: state.phase == 'JOINING',
-          child: const Text('Fill remaining players'),
-        ),
-        PopupMenuItem(
-          value: () => run(MockController.toggleDisconnect),
-          enabled: state.joinedCount >= 2,
-          child: const Text('Disconnect / reconnect player 2'),
-        ),
-        PopupMenuItem(
-          value: () => run(MockController.endRoundNow),
-          enabled: state.phase == 'PLAYING',
-          child: const Text('End round now'),
-        ),
-        const PopupMenuDivider(),
-        toggle('failNextGeneration', 'Fail next treasure generation'),
-        toggle('agentDown', 'Guard agent down'),
-        toggle('tieAt100', 'Next round: tie at 100'),
-        toggle('noScores', 'Next round: nobody scores'),
-        toggle('failNextClose', 'Fail next event close'),
-        const PopupMenuDivider(),
-        PopupMenuItem(value: () => MockController.kickController(), child: const Text('Sign in elsewhere (kick)')),
-      ],
     );
   }
 }

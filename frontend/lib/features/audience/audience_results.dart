@@ -4,6 +4,7 @@ import '../../core/theme/score_colors.dart';
 import '../../core/widgets/shape_marker.dart';
 import 'audience_state.dart';
 import 'audience_style.dart';
+import '../../core/widgets/treasure_image.dart';
 
 /// The finish on the big screen (FE-23). Every size is in stage pixels.
 ///
@@ -338,12 +339,14 @@ class _StoryCard extends StatelessWidget {
   const _StoryCard({required this.treasure});
   final AudienceTreasure? treasure;
 
+  /// The five agents in `/health/agents`. The winner is picked by plain
+  /// code, not an agent.
   static const agents = [
     'Treasure Generator agent',
+    'Image agent',
     'Filter agent',
     'Guard agent',
-    'Prompt and Emoji agent',
-    'Result Evaluation agent',
+    'Emoji agent',
   ];
 
   @override
@@ -361,10 +364,9 @@ class _StoryCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(24),
               child: AspectRatio(
                 aspectRatio: 2.2,
-                child: Image.network(
+                child: TreasureImage(
                   image,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => const ColoredBox(
+                  placeholder: const ColoredBox(
                     color: Stage.card,
                     child: Center(child: Icon(Icons.image_not_supported_outlined, size: 64, color: Stage.muted)),
                   ),

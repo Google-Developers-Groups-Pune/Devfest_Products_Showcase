@@ -1,9 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../../app/env.dart';
 import '../../core/api/api_error.dart';
-import '../../core/mock/mock_controller.dart';
 import '../../core/widgets/widgets.dart';
 import 'controller_auth.dart';
 import 'widgets/common.dart';
@@ -133,12 +131,6 @@ class _ControllerLoginState extends ConsumerState<ControllerLogin> {
                             onPressed: _busy ? null : _signIn,
                             child: _busy ? ButtonSpinner(color: c.onAccent) : const Text('Sign in'),
                           ),
-                          if (Env.isMock)
-                            Text(
-                              'Mock backend: ${MockController.username} / ${MockController.password}',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 12, color: c.textMuted),
-                            ),
                         ],
                       ),
                     ),

@@ -6,18 +6,12 @@ import '../../core/realtime/game_socket.dart';
 import '../../core/realtime/socket_providers.dart';
 import '../../core/timer/countdown.dart';
 import '../../core/wake/wake_lock.dart';
+import '../../core/json.dart';
+import '../../core/theme/slot_shape.dart';
+export '../../core/json.dart';
 
-typedef Json = Map<String, dynamic>;
 
 /// Slot shapes are fixed by slot number (shared contract).
-const slotShapes = {
-  1: 'BLUE_CIRCLE',
-  2: 'RED_SQUARE',
-  3: 'YELLOW_DIAMOND',
-  4: 'GREEN_PILL',
-  5: 'GREEN_CIRCLE',
-};
-
 /// One player as the public screen may see it. Never a full name or ID.
 class AudiencePlayer {
   const AudiencePlayer({
@@ -58,7 +52,7 @@ class AudiencePlayer {
     return AudiencePlayer(
       slotNumber: slot,
       label: '${j['label'] ?? 'Player $slot'}',
-      shape: '${j['shape'] ?? slotShapes[slot] ?? 'BLUE_CIRCLE'}',
+      shape: '${j['shape'] ?? SlotShape.forSlot(slot < 1 ? 1 : slot).apiValue}',
       connection: '${j['connection'] ?? 'CONNECTED'}',
       state: '${j['state'] ?? 'LOBBY'}',
       bestScore: (j['bestScore'] as num?)?.toInt(),

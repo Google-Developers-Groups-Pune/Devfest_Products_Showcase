@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../core/theme/score_colors.dart';
 import '../../core/timer/countdown.dart';
 import '../../core/widgets/shape_marker.dart';
+import '../../core/widgets/treasure_image.dart';
 import 'audience_state.dart';
 import 'audience_style.dart';
 import 'expression_face.dart';
@@ -182,7 +183,7 @@ class _ChallengeCard extends StatelessWidget {
                 aspectRatio: 1,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(20),
-                  child: TreasureImage(url: t?.imageUrl ?? ''),
+                  child: TreasureImage(t?.imageUrl ?? '', placeholder: const _ImagePlaceholder()),
                 ),
               ),
             ),
@@ -201,23 +202,6 @@ class _ChallengeCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class TreasureImage extends StatelessWidget {
-  const TreasureImage({super.key, required this.url});
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    if (url.isEmpty) return const _ImagePlaceholder();
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
-      errorBuilder: (_, _, _) => const _ImagePlaceholder(),
-      loadingBuilder: (_, child, progress) =>
-          progress == null ? child : const _ImagePlaceholder(),
     );
   }
 }

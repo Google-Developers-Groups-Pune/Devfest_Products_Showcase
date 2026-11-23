@@ -135,7 +135,7 @@ class _PlayerRowState extends ConsumerState<_PlayerRow> {
                       if (_busy) const ButtonSpinner(),
                       OutlinedButton(
                         key: Key('reject-name-${slot.slotNumber}'),
-                        onPressed: _busy ? null : () => _rename(p),
+                        onPressed: _busy || p.id.isEmpty ? null : () => _rename(p),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(0, 34),
                           foregroundColor: c.dangerText,
@@ -145,7 +145,7 @@ class _PlayerRowState extends ConsumerState<_PlayerRow> {
                       ),
                       FilledButton(
                         key: Key('approve-name-${slot.slotNumber}'),
-                        onPressed: _busy ? null : () => _run(() => ref.read(controllerProvider.notifier).approveName(p.id)),
+                        onPressed: _busy || p.id.isEmpty ? null : () => _run(() => ref.read(controllerProvider.notifier).approveName(p.id)),
                         style: FilledButton.styleFrom(minimumSize: const Size(0, 34), padding: const EdgeInsets.symmetric(horizontal: 14)),
                         child: const Text('Approve'),
                       ),

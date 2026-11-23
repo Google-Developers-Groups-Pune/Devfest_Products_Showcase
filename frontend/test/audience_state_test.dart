@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prompt_heist/core/theme/slot_shape.dart';
 import 'package:prompt_heist/features/audience/audience_battle.dart';
 import 'package:prompt_heist/features/audience/audience_shell.dart';
 import 'package:prompt_heist/features/audience/audience_state.dart';
@@ -6,7 +7,7 @@ import 'package:prompt_heist/features/audience/audience_state.dart';
 Map<String, dynamic> _player(int slot, String label, {int? best}) => {
   'slotNumber': slot,
   'label': label,
-  'shape': slotShapes[slot],
+  'shape': SlotShape.forSlot(slot).apiValue,
   'connection': 'CONNECTED',
   'state': 'PLAYING',
   'bestScore': best,

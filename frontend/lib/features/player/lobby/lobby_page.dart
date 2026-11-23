@@ -80,7 +80,7 @@ class _LobbyPageState extends ConsumerState<LobbyPage> {
     final first = (lobby.myLabel ?? '').split(' ').first;
     return PlayerPage(
       header: HeroBanner(
-        color: heroGreen,
+        color: HeistColors.heroGreen,
         child: Column(
           spacing: 6,
           children: [

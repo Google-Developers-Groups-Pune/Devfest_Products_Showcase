@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/api/api_client.dart';
 import '../../core/api/api_error.dart';
 import 'controller_auth.dart';
+import '../../core/json.dart';
+export '../../core/json.dart';
 
-typedef Json = Map<String, dynamic>;
 Json _json(dynamic j) => j is Map ? Map<String, dynamic>.from(j) : <String, dynamic>{};
 
 /// Every Controller endpoint from the shared contract.

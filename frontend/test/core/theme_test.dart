@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'package:prompt_heist/core/theme/heist_theme.dart';
+import 'package:prompt_heist/core/timer/countdown_math.dart';
 import 'package:prompt_heist/core/widgets/timer_pill.dart';
 
 void main() {
@@ -46,12 +47,12 @@ void main() {
   });
 
   group('timer', () {
-    test('formatClock rounds partial seconds up and never goes negative', () {
-      expect(formatClock(const Duration(seconds: 61)), '01:01');
-      expect(formatClock(const Duration(milliseconds: 200)), '00:01');
-      expect(formatClock(Duration.zero), '00:00');
-      expect(formatClock(const Duration(seconds: -3)), '00:00');
-      expect(formatClock(const Duration(seconds: 600)), '10:00');
+    test('formatCountdown rounds partial seconds up and never goes negative', () {
+      expect(formatCountdown(const Duration(seconds: 61)), '01:01');
+      expect(formatCountdown(const Duration(milliseconds: 200)), '00:01');
+      expect(formatCountdown(Duration.zero), '00:00');
+      expect(formatCountdown(const Duration(seconds: -3)), '00:00');
+      expect(formatCountdown(const Duration(seconds: 600)), '10:00');
     });
 
     test('TimerPill turns yellow at 30s and red at 10s', () {

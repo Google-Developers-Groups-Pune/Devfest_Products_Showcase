@@ -39,6 +39,10 @@ class HeistColors extends ThemeExtension<HeistColors> {
   /// Text on yellow.
   static const ink = Color(0xFF202124);
 
+  /// Deeper Google shades for full-bleed banners, so white text stays legible.
+  static const heroBlue = Color(0xFF1A73E8);
+  static const heroGreen = Color(0xFF1E8E3E);
+
   final Color page;
   final Color surface;
   final Color card;

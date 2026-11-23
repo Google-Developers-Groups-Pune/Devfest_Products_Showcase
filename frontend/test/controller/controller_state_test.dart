@@ -76,6 +76,37 @@ void main() {
     expect(s.stats.blockedCount, 3);
   });
 
+  test('player:joined (no id, no nameReview) merges into the players we have', () {
+    final slots = [
+      _slot(1, name: 'Neha'),
+      _slot(2, name: 'Dev', review: 'PENDING'),
+      for (var i = 3; i <= 5; i++) _slot(i),
+    ];
+    var s = const ControllerState().hydrate(_hydrate(phase: 'JOINING', slots: slots), at);
+    // ControllerPlayerListItem from the contract: a collision renamed Neha.
+    Map<String, dynamic> item(int n, String label) => {
+      'slotNumber': n,
+      'label': label,
+      'shape': 'BLUE_CIRCLE',
+      'connection': 'CONNECTED',
+      'state': 'LOBBY',
+      'fullName': '$label Rao',
+      'entranceId': 'DF-$n',
+    };
+    s = s.apply('player:joined', {
+      'joinedCount': 3,
+      'capacity': 5,
+      'players': [item(1, 'Neha R'), item(2, 'Dev'), item(3, 'Isha')],
+    }, at);
+    expect(s.slots[0].player!.id, 'ply_1');
+    expect(s.slots[0].player!.nameReview, 'APPROVED');
+    expect(s.slots[0].player!.label, 'Neha R');
+    expect(s.slots[1].player!.id, 'ply_2');
+    expect(s.slots[1].player!.nameReview, 'PENDING');
+    // New player: no id until the next hydrate, so name review waits for it.
+    expect(s.slots[2].player!.id, isEmpty);
+  });
+
   test('player:connection and player:unlocked update the slot chip', () {
     var s = const ControllerState().hydrate(_hydrate(phase: 'PLAYING'), at);
     s = s.apply('player:connection', {'slotNumber': 3, 'connection': 'DISCONNECTED'}, at);

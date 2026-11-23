@@ -5,10 +5,6 @@ import '../../../core/widgets/widgets.dart';
 /// Layout pieces for the player screens, following the Google / DevFest
 /// design used by the Controller. Colours always come from [HeistColors].
 
-/// Deeper Google shades for full-bleed banners, so white text stays legible.
-const heroBlue = Color(0xFF1A73E8);
-const heroGreen = Color(0xFF1E8E3E);
-
 /// The slot shape for an API value, falling back to blue circle.
 SlotShape slotShapeOf(String? apiValue) {
   try {
@@ -291,8 +287,8 @@ class HeroBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     // A hero shade counts as its logo colour, so a blue hero gets no blue blob.
     final base = switch (color) {
-      heroBlue => HeistColors.blue,
-      heroGreen => HeistColors.green,
+      HeistColors.heroBlue => HeistColors.blue,
+      HeistColors.heroGreen => HeistColors.green,
       _ => color,
     };
     final others = HeistColors.googleColors.where((c) => c != base).toList();
@@ -334,28 +330,3 @@ class HeroBanner extends StatelessWidget {
       );
 }
 
-/// Treasure or story picture. A missing or slow image never blocks anything.
-class TreasureImage extends StatelessWidget {
-  const TreasureImage(this.url, {super.key});
-
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.hc;
-    final placeholder = Container(
-      color: c.card,
-      alignment: Alignment.center,
-      child: Icon(Icons.diamond_outlined, size: 48, color: c.warningText),
-    );
-    if (url.isEmpty) return placeholder;
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
-      width: double.infinity,
-      webHtmlElementStrategy: WebHtmlElementStrategy.fallback,
-      loadingBuilder: (_, child, progress) => progress == null ? child : placeholder,
-      errorBuilder: (_, _, _) => placeholder,
-    );
-  }
-}

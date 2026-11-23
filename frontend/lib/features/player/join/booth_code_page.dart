@@ -147,7 +147,7 @@ class _BoothCodePageState extends ConsumerState<BoothCodePage> {
                 child: Column(
                   children: [
                     const HeroBanner(
-                      color: heroBlue,
+                      color: HeistColors.heroBlue,
                       padding: EdgeInsets.fromLTRB(20, 56, 20, 84),
                       child: Column(
                         spacing: 6,

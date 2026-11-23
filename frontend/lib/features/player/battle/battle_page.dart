@@ -102,7 +102,7 @@ class _BattlePageState extends ConsumerState<BattlePage> {
           if (reconnecting) const _ReconnectingBanner(),
           Row(
             children: [
-              _Clock(clock: clock, tone: tone),
+              TimerPill(remaining: clock.active ? clock.remaining : null, tone: tone, size: TimerPillSize.small),
               const Spacer(),
               bestChip,
             ],
@@ -233,38 +233,6 @@ class _BattlePageState extends ConsumerState<BattlePage> {
 }
 
 /// The countdown pill: blue, yellow in the last 30 s, red in the last 10 s.
-class _Clock extends StatelessWidget {
-  const _Clock({required this.clock, required this.tone});
-  final CountdownState clock;
-  final Tone tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final (bg, fg) = tone.colors(context.hc);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.fromLTRB(12, 6, 16, 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: 6,
-        children: [
-          Icon(Icons.timer_outlined, size: 20, color: fg),
-          Text(
-            clock.active ? clock.label : '--:--',
-            style: context.mono(
-              TextStyle(fontSize: 22, fontWeight: FontWeight.w500, color: fg),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// FE-10: shown after this player reaches 100. There is no input and the
 /// timer keeps running, because the winner is decided at 00:00.
 class _UnlockedView extends StatelessWidget {

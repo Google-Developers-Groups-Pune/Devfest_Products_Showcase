@@ -11,9 +11,10 @@ Duration remainingFor({
   return left.isNegative ? Duration.zero : left;
 }
 
-/// 80 seconds -> "01:20". Rounds up, so 00:00 only shows when time is truly up.
+/// 80 seconds -> "01:20". Rounds up, so 00:00 only shows when time is truly
+/// up, and never goes negative.
 String formatCountdown(Duration d) {
-  final total = (d.inMilliseconds / 1000).ceil();
+  final total = d.isNegative ? 0 : (d.inMilliseconds / 1000).ceil();
   final m = (total ~/ 60).toString().padLeft(2, '0');
   final s = (total % 60).toString().padLeft(2, '0');
   return '$m:$s';

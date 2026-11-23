@@ -1,8 +1,2 @@
-/// Non-web builds (tests): remembers the last file instead of saving it.
-String? lastDownloadName;
-String? lastDownloadText;
-
-void downloadTextFile(String filename, String text, {String mimeType = 'text/plain'}) {
-  lastDownloadName = filename;
-  lastDownloadText = text;
-}
+/// Non-web builds (tests): there is no browser to save the file to.
+void downloadTextFile(String filename, String text, {String mimeType = 'text/plain'}) {}

@@ -22,8 +22,10 @@ class TreasurePanel extends ConsumerStatefulWidget {
 
 class _TreasurePanelState extends ConsumerState<TreasurePanel> {
   bool _busy = false;
-  bool _imageReady = false;
-  String? _imageFor;
+
+  /// The candidate whose image has loaded. A new candidate locks Approve
+  /// again without any state change during build.
+  String? _imageLoadedFor;
 
   Future<void> _run(Future<void> Function() action) async {
     setState(() => _busy = true);
@@ -40,10 +42,7 @@ class _TreasurePanelState extends ConsumerState<TreasurePanel> {
   Widget build(BuildContext context) {
     final t = widget.state.treasure;
     final notifier = ref.read(controllerProvider.notifier);
-    if (t?.candidateId != _imageFor) {
-      _imageFor = t?.candidateId;
-      _imageReady = false;
-    }
+    final imageReady = t != null && _imageLoadedFor == t.candidateId;
 
     final Widget body;
     if (t == null || t.generating) {
@@ -59,11 +58,11 @@ class _TreasurePanelState extends ConsumerState<TreasurePanel> {
             alignment: Alignment.centerLeft,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
-              child: TreasureImage(
+              child: _ReviewImage(
                 key: ValueKey(t.imageUrl),
                 url: t.imageUrl,
                 onLoaded: () {
-                  if (mounted && !_imageReady) setState(() => _imageReady = true);
+                  if (mounted && _imageLoadedFor != t.candidateId) setState(() => _imageLoadedFor = t.candidateId);
                 },
               ),
             ),
@@ -77,7 +76,7 @@ class _TreasurePanelState extends ConsumerState<TreasurePanel> {
             children: [
               FilledButton.icon(
                 key: const Key('approve-treasure'),
-                onPressed: _imageReady && !_busy ? () => _run(notifier.approveTreasure) : null,
+                onPressed: imageReady && !_busy ? () => _run(notifier.approveTreasure) : null,
                 icon: const Icon(Icons.check),
                 label: const Text('Approve'),
               ),
@@ -86,7 +85,7 @@ class _TreasurePanelState extends ConsumerState<TreasurePanel> {
                 icon: const Icon(Icons.refresh),
                 label: const Text('Reject and regenerate'),
               ),
-              if (!_imageReady) const ReasonLine('Approve unlocks once the image has loaded.', tone: Tone.neutral),
+              if (!imageReady) const ReasonLine('Approve unlocks once the image has loaded.', tone: Tone.neutral),
             ],
           ),
         ],
@@ -236,85 +235,42 @@ class _Failed extends StatelessWidget {
   }
 }
 
-/// The generated treasure image in a 16:9 frame. Calls [onLoaded] once the
-/// image has decoded, so Approve can unlock (FE-13).
-class TreasureImage extends StatefulWidget {
-  const TreasureImage({super.key, required this.url, this.onLoaded, this.radius = 16});
+/// The generated treasure image in a 16:9 frame, with the Controller's
+/// loading and failed messages.
+class _ReviewImage extends StatelessWidget {
+  const _ReviewImage({super.key, required this.url, required this.onLoaded});
   final String url;
-  final VoidCallback? onLoaded;
-  final double radius;
-
-  @override
-  State<TreasureImage> createState() => _TreasureImageState();
-}
-
-class _TreasureImageState extends State<TreasureImage> {
-  ImageStream? _stream;
-  late final ImageStreamListener _listener = ImageStreamListener(
-    (_, _) {
-      if (mounted) setState(() => _status = 1);
-      widget.onLoaded?.call();
-    },
-    onError: (_, _) {
-      if (mounted) setState(() => _status = -1);
-    },
-  );
-
-  /// 0 loading, 1 loaded, -1 failed.
-  int _status = 0;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_stream == null && widget.url.isNotEmpty) {
-      _stream = NetworkImage(widget.url).resolve(createLocalImageConfiguration(context))..addListener(_listener);
-    } else if (widget.url.isEmpty) {
-      _status = -1;
-    }
-  }
-
-  @override
-  void dispose() {
-    _stream?.removeListener(_listener);
-    super.dispose();
-  }
+  final VoidCallback onLoaded;
 
   @override
   Widget build(BuildContext context) {
     final c = context.hc;
+    Widget message(Widget icon, String text) => ColoredBox(
+      color: c.card,
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 10,
+          children: [
+            icon,
+            Text(text, style: TextStyle(color: c.textSecondary)),
+          ],
+        ),
+      ),
+    );
     return ClipRRect(
-      borderRadius: BorderRadius.circular(widget.radius),
+      borderRadius: BorderRadius.circular(16),
       child: AspectRatio(
         aspectRatio: 16 / 9,
-        child: switch (_status) {
-          1 => Image.network(widget.url, fit: BoxFit.cover),
-          -1 => ColoredBox(
-            color: c.card,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 8,
-                children: [
-                  Icon(Icons.broken_image_outlined, size: 36, color: c.textMuted),
-                  Text('The image did not load. Reject and regenerate.', style: TextStyle(color: c.textSecondary)),
-                ],
-              ),
-            ),
+        child: TreasureImage(
+          url,
+          onLoaded: onLoaded,
+          placeholder: message(const CircularProgressIndicator(strokeWidth: 2.5), 'Loading image…'),
+          error: message(
+            Icon(Icons.broken_image_outlined, size: 36, color: c.textMuted),
+            'The image did not load. Reject and regenerate.',
           ),
-          _ => ColoredBox(
-            color: c.card,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 10,
-                children: [
-                  const CircularProgressIndicator(strokeWidth: 2.5),
-                  Text('Loading image…', style: TextStyle(color: c.textSecondary)),
-                ],
-              ),
-            ),
-          ),
-        },
+        ),
       ),
     );
   }

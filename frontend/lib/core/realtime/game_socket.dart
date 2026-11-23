@@ -40,8 +40,16 @@ class GameSocket {
 
   final _messages = StreamController<SocketMessage>.broadcast();
   final _status = StreamController<SocketStatus>.broadcast();
+  final _refused = StreamController<String>.broadcast();
+
+  /// Codes the server sends in `connect_error` when it refuses the handshake.
+  /// Retrying cannot help, so the socket stops and reports the code.
+  static const refusalCodes = {'UNAUTHENTICATED', 'SESSION_CLOSED', 'TOKEN_SUPERSEDED'};
 
   Stream<SocketMessage> get messages => _messages.stream;
+
+  /// One of [refusalCodes], after which the socket no longer reconnects.
+  Stream<String> get refused => _refused.stream;
   Stream<SocketStatus> get status => _status.stream;
   SocketStatus get currentStatus => _current;
 
@@ -62,7 +70,15 @@ class GameSocket {
     _socket = s;
     s.onConnect((_) => _onConnected());
     s.onDisconnect((_) => _set(SocketStatus.reconnecting));
-    s.onConnectError((_) => _set(SocketStatus.reconnecting));
+    s.onConnectError((err) {
+      final code = err is Map ? '${err['message']}' : '$err';
+      if (refusalCodes.contains(code)) {
+        s.dispose();
+        if (!_refused.isClosed) _refused.add(code);
+        return;
+      }
+      _set(SocketStatus.reconnecting);
+    });
     s.onAny((event, data) => _emit(event, data));
     s.connect();
   }
@@ -233,5 +249,6 @@ class GameSocket {
     _socket?.dispose();
     _messages.close();
     _status.close();
+    _refused.close();
   }
 }

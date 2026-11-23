@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:prompt_heist/core/theme/slot_shape.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:prompt_heist/features/audience/audience_battle.dart';
 import 'package:prompt_heist/features/audience/audience_state.dart';
@@ -36,7 +37,7 @@ void main() {
           {
             'slotNumber': i + 1,
             'label': labels[i],
-            'shape': slotShapes[i + 1],
+            'shape': SlotShape.forSlot(i + 1).apiValue,
             'connection': i == 3 ? 'DISCONNECTED' : 'CONNECTED',
             'state': 'PLAYING',
             'bestScore': 20 * i,

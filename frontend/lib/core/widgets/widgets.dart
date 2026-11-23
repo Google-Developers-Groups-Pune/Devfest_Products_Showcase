@@ -9,3 +9,4 @@ export 'podium.dart';
 export 'shape_avatar.dart';
 export 'timer_pill.dart';
 export 'top_stripe.dart';
+export 'treasure_image.dart';

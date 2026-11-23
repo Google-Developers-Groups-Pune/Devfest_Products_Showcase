@@ -2,8 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'api_client.dart';
+import '../json.dart';
+export '../json.dart';
 
-typedef Json = Map<String, dynamic>;
 Json _json(dynamic j) => Map<String, dynamic>.from(j as Map);
 
 class PlayerApi {
