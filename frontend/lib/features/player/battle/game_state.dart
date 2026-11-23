@@ -173,6 +173,10 @@ class GameNotifier extends Notifier<GameState> {
 
   final _items = <PromptItem>[];
   final _lastPoll = <String, DateTime>{};
+
+  /// `prompt:*` events that arrived before the submit reply gave us their
+  /// promptId. Applied as soon as the id is known, so no score is lost.
+  final _early = <String, SocketMessage>{};
   final _uuid = const Uuid();
 
   @override
@@ -277,6 +281,9 @@ class GameNotifier extends Notifier<GameState> {
     }
 
     _items.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+    // The server state already includes anything these events said.
+    _early.removeWhere((id, _) => _items.any((p) => p.promptId == id));
   }
 
   void _updateBy(
@@ -293,6 +300,14 @@ class GameNotifier extends Notifier<GameState> {
   void _onMessage(SocketMessage m) {
     final d = m.data;
     if (d is! Map) return;
+
+    if (m.event.startsWith('prompt:')) {
+      final id = '${d['promptId']}';
+      if (!_items.any((p) => p.promptId == id)) {
+        _early[id] = m;
+        return;
+      }
+    }
 
     switch (m.event) {
       case 'round:started':
@@ -475,6 +490,10 @@ class GameNotifier extends Notifier<GameState> {
               : p.stage,
         ),
       );
+
+      // The socket may have been faster than this reply.
+      final early = _early.remove('${r['promptId']}');
+      if (early != null) _onMessage(early);
     } catch (e) {
       if (!ref.mounted) return;
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -140,4 +142,28 @@ void main() {
       expect(items().single.canRetry, isFalse);
     });
   });
+
+  test(
+    'a score that arrives before the submit reply is kept (review bug 8)',
+    () async {
+      final reply = Completer<(int, Map<String, dynamic>)>();
+      backend.submit = (_, _) => reply.future;
+      final sending = game().submit('fast score');
+      await until(() => items().length == 1);
+
+      await emit('prompt:scored', {
+        'promptId': 'prm_9',
+        'score': 72,
+        'feedback': 'Nice.',
+        'bestScore': 72,
+      });
+      expect(items().single.stage, PromptStage.submitting);
+
+      reply.complete((202, {'promptId': 'prm_9', 'status': 'RECEIVED'}));
+      await sending;
+      expect(items().single.stage, PromptStage.scored);
+      expect(items().single.score, 72);
+      expect(c.read(gameProvider).bestScore, 72);
+    },
+  );
 }
