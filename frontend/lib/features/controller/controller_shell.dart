@@ -25,6 +25,6 @@ class ControllerShell extends ConsumerWidget {
     } else {
       page = const ControllerDashboard();
     }
-    return HeistThemeScope(child: Title(title: 'Prompt Heist Controller', color: HeistColors.blue, child: page));
+    return Title(title: 'Prompt Heist Controller', color: HeistColors.blue, child: page);
   }
 }

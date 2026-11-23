@@ -4,7 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import '../core/api/player_exit.dart';
 import '../core/api/token_store.dart';
 import '../core/storage/player_session.dart';
-import '../core/widgets/app_background.dart';
+import '../core/theme/heist_theme.dart';
 import '../features/player/battle/game_state.dart';
 import 'router.dart';
 
@@ -48,15 +48,10 @@ class PromptHeistApp extends ConsumerWidget {
       title: 'Prompt Heist',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'AppSans',
-        fontFamilyFallback: const ['AppEmoji'],
-        // Pages show the shared background behind them.
-        scaffoldBackgroundColor: Colors.transparent,
-      ),
+      // One theme for every route (FE-26). The audience draws its own stage.
+      theme: buildHeistTheme(),
       builder: (context, child) =>
-          AppBackground(child: child ?? const SizedBox()),
+          HeistThemeScope(child: child ?? const SizedBox()),
     );
   }
 }

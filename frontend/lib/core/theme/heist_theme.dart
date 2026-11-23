@@ -14,6 +14,7 @@ ThemeData buildHeistTheme() {
     useMaterial3: true,
     brightness: Brightness.dark,
     fontFamily: HeistFonts.sans,
+    fontFamilyFallback: const ['AppEmoji'],
     colorScheme: ColorScheme.fromSeed(seedColor: HeistColors.blue, brightness: Brightness.dark).copyWith(
       primary: c.accent,
       onPrimary: c.onAccent,
@@ -78,28 +79,28 @@ ThemeData buildHeistTheme() {
   );
 }
 
-/// Applies the dark Heist theme to one surface (the Controller and gallery).
-/// The player and audience routes keep their own look.
+/// The one place the app's look is set: `app.dart` wraps every route in it.
+/// The audience big screen draws its own fixed stage on top.
 class HeistThemeScope extends StatelessWidget {
   const HeistThemeScope({super.key, required this.child});
 
   final Widget child;
 
-  static final ThemeData _theme = buildHeistTheme();
-
+  /// The theme itself is [buildHeistTheme], set once on `MaterialApp`; this
+  /// adds the page colour, text style and selection colours around it.
   @override
-  Widget build(BuildContext context) => Theme(
-        data: _theme,
-        child: ColoredBox(
-          color: HeistColors.dark.page,
-          child: DefaultTextStyle(
-            style: TextStyle(color: HeistColors.dark.text, fontFamily: HeistFonts.sans),
-            // MaterialApp sets the cursor from the outer theme; use our blue.
-            child: DefaultSelectionStyle(
-              cursorColor: HeistColors.dark.accent,
-              selectionColor: HeistColors.dark.accent.withValues(alpha: 0.35),
-              child: child,
-            ),
+  Widget build(BuildContext context) => ColoredBox(
+        color: HeistColors.dark.page,
+        child: DefaultTextStyle(
+          style: TextStyle(
+            color: HeistColors.dark.text,
+            fontFamily: HeistFonts.sans,
+            fontFamilyFallback: const ['AppEmoji'],
+          ),
+          child: DefaultSelectionStyle(
+            cursorColor: HeistColors.dark.accent,
+            selectionColor: HeistColors.dark.accent.withValues(alpha: 0.35),
+            child: child,
           ),
         ),
       );
