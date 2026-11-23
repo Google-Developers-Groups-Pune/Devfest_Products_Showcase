@@ -73,7 +73,7 @@ class PromptTile extends StatelessWidget {
                   p.text,
                   style: TextStyle(color: c.textSecondary, height: 1.4),
                 ),
-                if (p.stage == PromptStage.failed)
+                if (p.stage == PromptStage.failed && p.canRetry)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: OutlinedButton(

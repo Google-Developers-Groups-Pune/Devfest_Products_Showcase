@@ -70,6 +70,7 @@ class PromptItem {
     this.score,
     this.feedback,
     this.message,
+    this.canRetry = true,
   });
 
   final String key;
@@ -81,12 +82,18 @@ class PromptItem {
   final String? feedback;
   final String? message;
 
+  /// Whether Retry can succeed. False for errors that fail the same way
+  /// every time (time up, already unlocked, too long) and when
+  /// `prompt:failed` says `canRetry: false` (FE-09).
+  final bool canRetry;
+
   PromptItem copyWith({
     String? promptId,
     PromptStage? stage,
     int? score,
     String? feedback,
     String? message,
+    bool? canRetry,
   }) => PromptItem(
     key: key,
     text: text,
@@ -96,6 +103,7 @@ class PromptItem {
     score: score ?? this.score,
     feedback: feedback ?? this.feedback,
     message: message ?? this.message,
+    canRetry: canRetry ?? this.canRetry,
   );
 
   factory PromptItem.fromServer(Map<String, dynamic> j) {
@@ -334,6 +342,7 @@ class GameNotifier extends Notifier<GameState> {
           (p) => p.copyWith(
             stage: PromptStage.failed,
             message: d['message'] as String?,
+            canRetry: d['canRetry'] == true,
           ),
         );
         break;
@@ -470,6 +479,9 @@ class GameNotifier extends Notifier<GameState> {
       if (!ref.mounted) return;
 
       var msg = 'Something went wrong. Please try again.';
+      // Only a lost connection, a server error or a rate limit can pass on
+      // a second try. Everything else fails again with the same key.
+      var canRetry = true;
 
       if (e is ApiException) {
         msg = switch (e.code) {
@@ -480,11 +492,18 @@ class GameNotifier extends Notifier<GameState> {
           'NETWORK_ERROR' => 'No connection. Tap retry.',
           _ => e.message,
         };
+        final status = e.statusCode;
+        canRetry =
+            e.isNetwork || status == null || status >= 500 || status == 429;
       }
 
       _updateBy(
         (p) => p.key == key,
-        (p) => p.copyWith(stage: PromptStage.failed, message: msg),
+        (p) => p.copyWith(
+          stage: PromptStage.failed,
+          message: msg,
+          canRetry: canRetry,
+        ),
       );
     }
   }
