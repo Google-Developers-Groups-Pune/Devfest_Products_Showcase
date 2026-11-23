@@ -18,10 +18,11 @@ Flutter stable · Riverpod · go_router (path URLs) · Dio + Retrofit client gen
 
 ```sh
 flutter pub get
-flutter run -d chrome --web-port 5000 --dart-define-from-file=config/mock.json    # against the mock server
+flutter run -d chrome --web-port 5000                                              # real API on :4010, e.g. the BE-02 replay server
+flutter run -d chrome --web-port 5000 --dart-define-from-file=config/mock.json    # in-app mock, no server needed
 flutter run -d chrome --web-port 5000 --dart-define-from-file=config/local.json   # against a local backend
 flutter analyze
-flutter test
+flutter test --dart-define-from-file=config/mock.json   # the tests run against the in-app mock
 flutter build web --release --no-web-resources-cdn --dart-define-from-file=config/<flavour>.json
 ```
 

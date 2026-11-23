@@ -1,10 +1,13 @@
 /// Build-time configuration, passed with `--dart-define-from-file=config/<flavour>.json`.
 ///
-/// Flavours (FE-01): `config/mock.json` targets the BE-02 mock server,
-/// `config/local.json` targets a locally running backend.
+/// Flavours (FE-01): `config/mock.json` runs the in-app mock (no server),
+/// `config/local.json` targets a locally running backend. With no file the
+/// app talks to the real API at `localhost:4010`, which is where the BE-02
+/// replay server (`npm run mock:game`) listens. The in-app mock is never on
+/// unless a flavour asks for it.
 abstract final class Env {
-  /// Backend `mock` or `real`.
-  static const String backend = String.fromEnvironment('BACKEND', defaultValue: 'mock');
+  /// Backend `mock` (in-app mock) or `real`.
+  static const String backend = String.fromEnvironment('BACKEND', defaultValue: 'real');
 
   /// REST API base URL.
   static const String apiBaseUrl = String.fromEnvironment(
