@@ -44,7 +44,8 @@ npm run build && npm start
 | `src/projections/` | `toDisplayDto` / `toPlayerDto` allow-lists | BE-13 |
 | `scripts/` | Controller seed script, `event:reset` | BE-05, BE-29 |
 | `test/unit/` | Fast tests with `FakeClock` and fakes | all |
-| `test/integration/` | HTTP, socket and Firestore emulator tests (Socket.IO namespace test is here) | all |
+| `test/integration/` | HTTP, socket and Firestore emulator tests | all |
+| `test/contract/` | Checks the typed socket events against `contract/openapi/asyncapi.yaml` | BE-07 |
 | `test/fixtures/` | Shared emulator fixtures and agent fixture sets | BE-03, BE-15 |
 | `test/harness/` | Whole-game simulation harness | BE-31 |
 
