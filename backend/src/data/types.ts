@@ -37,6 +37,13 @@ export interface EventDoc {
   createdAt: Timestamp;
   closedAt: Timestamp | null;
   controllerId: string;
+  /** Last winners CSV export (BE-28). */
+  csvExportedAt?: Timestamp | null;
+  /**
+   * True once a CSV covering every confirmed winner has been exported (BE-28). Starts false,
+   * and confirming a winner (BE-25) sets it back to false. Closing needs it true (D44, BE-29).
+   */
+  csvUpToDate?: boolean;
 }
 
 /** events/{eventId}/entranceIds/{sha256}. Personal data: deleted at closure. */
@@ -161,4 +168,8 @@ export interface ResultDoc {
   decidingPromptId: string | null;
   tieBreak: string | null;
   confirmation: 'PROVISIONAL' | 'CONFIRMED' | 'DISCARDED';
+  /** Set when confirmed (BE-25). Counts confirmed sessions only (D35). */
+  roundNumber?: number | null;
+  /** Set when confirmed (BE-25). */
+  confirmedAt?: Timestamp | null;
 }

@@ -2,6 +2,7 @@ import cors from 'cors';
 import express, { type Express } from 'express';
 import type { Logger } from 'pino';
 import type { AgentHealthService } from './agents/health.js';
+import type { WinnersExportService } from './services/winners-export.js';
 import type { Clock } from './core/clock.js';
 import { CORRELATION_HEADER, correlationId } from './http/middleware/correlation-id.js';
 import { errorHandler, notFound } from './http/middleware/error-handler.js';
@@ -17,6 +18,8 @@ export interface AppDeps {
   corsOrigins: string[];
   /** Agent health probes for API 18 (BE-14). */
   agentHealth: AgentHealthService;
+  /** Winners CSV, API 15 (BE-28). Optional until the server connects to Firestore. */
+  winners?: WinnersExportService;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -39,7 +42,7 @@ export function createApp(deps: AppDeps): Express {
   app.use(express.json({ limit: '32kb' }));
 
   app.use(healthRouter());
-  app.use('/api/controller', controllerRouter({ agentHealth: deps.agentHealth }));
+  app.use('/api/controller', controllerRouter({ agentHealth: deps.agentHealth, winners: deps.winners }));
   app.use('/api/player', playerRouter());
   app.use('/api/display', displayRouter());
 
