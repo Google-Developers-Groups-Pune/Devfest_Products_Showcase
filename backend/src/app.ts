@@ -2,6 +2,8 @@ import cors from 'cors';
 import express, { type Express } from 'express';
 import type { Logger } from 'pino';
 import type { AgentHealthService } from './agents/health.js';
+import type { AuditLogService } from './services/audit-log.js';
+import type { RoundMonitorService } from './services/round-monitor.js';
 import type { WinnersExportService } from './services/winners-export.js';
 import type { Clock } from './core/clock.js';
 import { CORRELATION_HEADER, correlationId } from './http/middleware/correlation-id.js';
@@ -20,6 +22,10 @@ export interface AppDeps {
   agentHealth: AgentHealthService;
   /** Winners CSV, API 15 (BE-28). Optional until the server connects to Firestore. */
   winners?: WinnersExportService;
+  /** Live monitor, API 11 (BE-26). Optional until the server connects to Firestore. */
+  monitor?: RoundMonitorService;
+  /** Audit log, API 19 (BE-26). Optional until the server connects to Firestore. */
+  audit?: AuditLogService;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -42,7 +48,15 @@ export function createApp(deps: AppDeps): Express {
   app.use(express.json({ limit: '32kb' }));
 
   app.use(healthRouter());
-  app.use('/api/controller', controllerRouter({ agentHealth: deps.agentHealth, winners: deps.winners }));
+  app.use(
+    '/api/controller',
+    controllerRouter({
+      agentHealth: deps.agentHealth,
+      winners: deps.winners,
+      monitor: deps.monitor,
+      audit: deps.audit,
+    }),
+  );
   app.use('/api/player', playerRouter());
   app.use('/api/display', displayRouter());
 

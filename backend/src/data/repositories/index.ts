@@ -2,6 +2,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import type { Clock } from '../../core/clock.js';
 import { paths, type RoundRef, type SessionRef } from '../paths.js';
 import type {
+  AgentErrorDoc,
   AuditEventDoc,
   CandidateDoc,
   ControllerDoc,
@@ -44,6 +45,7 @@ export function createRepositories(db: Firestore, clock: Clock) {
     prompts: (r: RoundRef) => promptRepository(db, clock, r),
     scores: (r: RoundRef) => collectionRepository<ScoreDoc>(db, 'score', paths.scores(r)),
     reactions: (r: RoundRef) => collectionRepository<ReactionDoc>(db, 'reaction', paths.reactions(r)),
+    agentErrors: (r: RoundRef) => collectionRepository<AgentErrorDoc>(db, 'agentError', paths.agentErrors(r)),
     result: (r: RoundRef) => singleDocRepository<ResultDoc>(db, paths.result(r)),
   };
 }

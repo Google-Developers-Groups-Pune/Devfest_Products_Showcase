@@ -14,6 +14,7 @@
  *         prompts/{promptId}
  *         scores/{promptId}
  *         reactions/{promptId}
+ *         agentErrors/{agentErrorId}
  *         result/current
  */
 
@@ -58,6 +59,7 @@ export const paths = {
   prompts: (ref: RoundRef) => `${paths.round(ref)}/prompts`,
   scores: (ref: RoundRef) => `${paths.round(ref)}/scores`,
   reactions: (ref: RoundRef) => `${paths.round(ref)}/reactions`,
+  agentErrors: (ref: RoundRef) => `${paths.round(ref)}/agentErrors`,
   result: (ref: RoundRef) => `${paths.round(ref)}/result/current`,
 
   /** Checks a document ID before it is used inside a collection. */
