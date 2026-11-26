@@ -1,12 +1,16 @@
 import { pino } from 'pino';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
+import { createFakeAgents } from '../../src/agents/fakes/index.js';
+import { AgentHealthService } from '../../src/agents/health.js';
 import { createApp } from '../../src/app.js';
 import { FakeClock } from '../../src/core/clock.js';
 
 const APP_ORIGIN = 'http://localhost:5000';
+const clock = new FakeClock();
 const app = createApp({
-  clock: new FakeClock(),
+  clock,
+  agentHealth: new AgentHealthService(createFakeAgents(), clock),
   logger: pino({ level: 'silent' }),
   corsOrigins: [APP_ORIGIN],
 });

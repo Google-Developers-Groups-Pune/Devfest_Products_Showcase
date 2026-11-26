@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express, { type Express } from 'express';
 import type { Logger } from 'pino';
+import type { AgentHealthService } from './agents/health.js';
 import type { Clock } from './core/clock.js';
 import { CORRELATION_HEADER, correlationId } from './http/middleware/correlation-id.js';
 import { errorHandler, notFound } from './http/middleware/error-handler.js';
@@ -14,6 +15,8 @@ export interface AppDeps {
   logger: Logger;
   /** Browser origins allowed to call the API (the Flutter app's origin). Empty = none. */
   corsOrigins: string[];
+  /** Agent health probes for API 18 (BE-14). */
+  agentHealth: AgentHealthService;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -36,7 +39,7 @@ export function createApp(deps: AppDeps): Express {
   app.use(express.json({ limit: '32kb' }));
 
   app.use(healthRouter());
-  app.use('/api/controller', controllerRouter());
+  app.use('/api/controller', controllerRouter({ agentHealth: deps.agentHealth }));
   app.use('/api/player', playerRouter());
   app.use('/api/display', displayRouter());
 

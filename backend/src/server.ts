@@ -1,4 +1,6 @@
 import { createServer } from 'node:http';
+import { createFakeAgents } from './agents/fakes/index.js';
+import { AgentHealthService } from './agents/health.js';
 import { createApp } from './app.js';
 import { corsOrigins, loadEnv } from './config/env.js';
 import { systemClock } from './core/clock.js';
@@ -11,7 +13,12 @@ const env = loadEnv();
 const logger = createLogger(env.LOG_LEVEL);
 const origins = corsOrigins(env);
 
-const app = createApp({ clock: systemClock, logger, corsOrigins: origins });
+// The real Gemini agents need the GCP environment (BE-38), which is on hold. Until then the
+// server runs on the deterministic fakes (BE-14).
+const agents = createFakeAgents();
+const agentHealth = new AgentHealthService(agents, systemClock);
+
+const app = createApp({ clock: systemClock, logger, corsOrigins: origins, agentHealth });
 const httpServer = createServer(app);
 
 // Until BE-05 (token checks) and BE-12 (connection state) land, every /controller and /player
