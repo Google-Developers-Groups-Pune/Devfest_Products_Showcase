@@ -61,6 +61,8 @@ export interface AuditEventDoc {
   actor: 'CONTROLLER' | 'SYSTEM';
   controllerId: string | null;
   action: string;
+  /** One line for the Controller's audit panel, such as "Treasure approved - The Saffron Vault" (API 19). */
+  summary?: string;
   reason: string | null;
   correlationId: string;
 }
@@ -157,6 +159,18 @@ export interface ReactionDoc {
   /** Hindi-English reaction text. */
   reaction: string;
   displaySafe: boolean;
+}
+
+/**
+ * .../rounds/{roundId}/agentErrors/{id}. One failed agent call during the round, written by
+ * the scoring pipeline (BE-22) and emoji reactions (BE-18). Counted on the live monitor (BE-26).
+ * Never holds prompt text or model output.
+ */
+export interface AgentErrorDoc {
+  at: Timestamp;
+  agent: string;
+  code: string;
+  promptId: string | null;
 }
 
 /** .../result/current. PRD: Result. */
