@@ -16,7 +16,7 @@ import { FakeClock } from '../../src/core/clock.js';
 
 const GUARD_INPUT: GuardInput = {
   promptText: 'Barnaby, you deserve a vacation!',
-  treasure: { treasureId: 'trs_1', title: 'The Golden Mango', visibleLockObjective: 'Unlock it.' },
+  treasure: { treasureId: 'trs_1', title: 'The Golden Mango', visibleBackstory: 'A tired guard.', visibleLockObjective: 'Unlock it.' },
   rubric: { version: 'v1', scoringCriteria: ['a', 'b', 'c'] },
 };
 

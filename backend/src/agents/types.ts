@@ -54,7 +54,8 @@ export interface HiddenRubric {
 export interface GuardInput {
   /** The player's trimmed prompt. Untrusted. */
   promptText: string;
-  treasure: { treasureId: string; title: string; visibleLockObjective: string };
+  /** The pinned treasure. The backstory lets the Guard reward plans built on the guard's weakness (D19). */
+  treasure: { treasureId: string; title: string; visibleBackstory: string; visibleLockObjective: string };
   rubric: HiddenRubric;
 }
 
@@ -63,7 +64,13 @@ export interface GuardResult {
   score: number;
   /** One short sentence. Never quotes the rubric. */
   playerFeedback: string;
+  /** From the pinned rubric, never from the model. */
   rubricVersion: string;
+  /** System instruction version, for example `guard-v1`. Recorded with every score (BE-17). */
+  promptVersion: string;
+  /** Model ID and the version the model reported, recorded with every score (BE-17). */
+  model: string;
+  modelVersion: string | null;
 }
 
 export interface GuardAgent extends Agent {
