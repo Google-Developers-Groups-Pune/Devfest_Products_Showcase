@@ -22,6 +22,11 @@ export interface ControllerDoc {
   username: string;
   /** argon2 hash, written by the seed script. Never the plain password. */
   passwordHash: string;
+  /**
+   * Token ID of the one signed-in Controller, or null. A new login replaces it and
+   * logout clears it, so older tokens stop working, even after a restart (BE-05, D29).
+   */
+  activeTokenId: string | null;
 }
 
 /** system/eventStatus. The one record kept after deletion. No personal data (D4, BE-29). */

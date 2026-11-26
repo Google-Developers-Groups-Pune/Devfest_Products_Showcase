@@ -14,6 +14,7 @@ npm run lint
 npm run typecheck
 npm test                 # unit tests
 npm run test:emulator    # tests against the Firestore emulator (needs a JDK; use 21+)
+npm run seed:controller  # create or update the one Controller account (asks for username and password)
 npm run build && npm start
 ```
 

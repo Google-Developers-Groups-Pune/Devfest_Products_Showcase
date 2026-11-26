@@ -16,7 +16,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:emulator": "firebase emulators:exec --only firestore --project demo-prompt-heist \"vitest run\""
+    "test:emulator": "firebase emulators:exec --only firestore --project demo-prompt-heist \"vitest run\"",
+    "seed:controller": "node --env-file-if-exists=.env --import tsx scripts/seed-controller.ts"
   },
   "dependencies": {
     "@google/genai": "^3.6.1",

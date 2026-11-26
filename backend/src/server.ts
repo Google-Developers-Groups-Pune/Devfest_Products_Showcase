@@ -1,27 +1,50 @@
 import { createServer } from 'node:http';
 import { createApp } from './app.js';
+import { TokenService } from './auth/tokens.js';
 import { corsOrigins, loadEnv } from './config/env.js';
 import { systemClock } from './core/clock.js';
-import { AppError } from './core/errors.js';
 import { createLogger } from './core/logger.js';
+import { createFirestore } from './data/firestore.js';
+import { createRepositories } from './data/repositories/index.js';
 import { createRealtimeGateway } from './realtime/gateway.js';
 import type { PlayerConnectionStore, SocketAuthenticator } from './realtime/ports.js';
+import { firestoreControllerAuthStore, firestorePlayerAuthStore } from './services/auth-stores.js';
+import { ControllerAuthService } from './services/controller-auth.js';
+import { PlayerAuthService } from './services/player-auth.js';
 
 const env = loadEnv();
 const logger = createLogger(env.LOG_LEVEL);
 const origins = corsOrigins(env);
 
-const app = createApp({ clock: systemClock, logger, corsOrigins: origins });
+if (env.JWT_SECRET === undefined) {
+  throw new Error('JWT_SECRET is not set. See .env.example.');
+}
+const repos = createRepositories(createFirestore(env), systemClock);
+const tokens = new TokenService(env.JWT_SECRET, systemClock);
+
+// These hooks use `realtime`, created further down. They only run on a login or logout
+// request, which can only arrive after the server is listening.
+const controllerAuth = new ControllerAuthService(firestoreControllerAuthStore(repos), tokens, {
+  signedInElsewhere: (oldTokenId) =>
+    realtime.emit.kickController(oldTokenId, 'controller:kicked', { reason: 'SIGNED_IN_ELSEWHERE' }),
+  loggedOut: (tokenId) => realtime.emit.disconnectController(tokenId),
+});
+const playerAuth = new PlayerAuthService(firestorePlayerAuthStore(repos), tokens);
+
+const app = createApp({ clock: systemClock, logger, corsOrigins: origins, controllerAuth });
 const httpServer = createServer(app);
 
-// Until BE-05 (token checks) and BE-12 (connection state) land, every /controller and /player
-// handshake is refused. No tokens can be issued yet anyway. /display works.
-const notSignedIn = (): Promise<never> =>
-  Promise.reject(new AppError(401, 'UNAUTHENTICATED', 'Your sign-in is not valid. Please start again.'));
 const authenticator: SocketAuthenticator = {
-  authenticateController: notSignedIn,
-  authenticatePlayer: notSignedIn,
+  authenticateController: async (token) => {
+    const { controllerId, tokenId, expiresAt } = await controllerAuth.authenticate(token);
+    return { controllerId, tokenId, expiresAt };
+  },
+  authenticatePlayer: async (token) => {
+    const { playerId, sessionId, tokenId } = await playerAuth.authenticate(token);
+    return { playerId, sessionId, tokenId };
+  },
 };
+// Until BE-12 lands, connection changes are not stored.
 const connectionStore: PlayerConnectionStore = { recordConnection: () => Promise.resolve(null) };
 
 const realtime = createRealtimeGateway(httpServer, {

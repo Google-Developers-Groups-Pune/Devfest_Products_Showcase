@@ -3,10 +3,13 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createApp } from '../../src/app.js';
 import { FakeClock } from '../../src/core/clock.js';
+import { createTestAuth } from '../fixtures/auth.js';
 
 const APP_ORIGIN = 'http://localhost:5000';
+const clock = new FakeClock();
 const app = createApp({
-  clock: new FakeClock(),
+  clock,
+  controllerAuth: createTestAuth(clock).controllerAuth,
   logger: pino({ level: 'silent' }),
   corsOrigins: [APP_ORIGIN],
 });
