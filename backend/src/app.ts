@@ -3,6 +3,7 @@ import express, { type Express } from 'express';
 import type { Logger } from 'pino';
 import type { AgentHealthService } from './agents/health.js';
 import type { AuditLogService } from './services/audit-log.js';
+import type { EventCloseService } from './services/event-close.js';
 import type { RoundMonitorService } from './services/round-monitor.js';
 import type { WinnersExportService } from './services/winners-export.js';
 import type { Clock } from './core/clock.js';
@@ -26,6 +27,8 @@ export interface AppDeps {
   monitor?: RoundMonitorService;
   /** Audit log, API 19 (BE-26). Optional until the server connects to Firestore. */
   audit?: AuditLogService;
+  /** Close event and its status, APIs 16 and 17 (BE-29). Optional until the server connects to Firestore. */
+  events?: EventCloseService;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -55,6 +58,7 @@ export function createApp(deps: AppDeps): Express {
       winners: deps.winners,
       monitor: deps.monitor,
       audit: deps.audit,
+      events: deps.events,
     }),
   );
   app.use('/api/player', playerRouter());

@@ -69,6 +69,12 @@ export class RealtimeEmitter {
     target.disconnectSockets(true);
   }
 
+  /** Disconnects every player and display socket. The Controller stays connected. For closing the event day (BE-29). */
+  disconnectPlayersAndDisplay(): void {
+    this.ns.player.disconnectSockets(true);
+    this.ns.display.disconnectSockets(true);
+  }
+
   /** Disconnects the Controller socket(s) using `tokenId`, with no event. For logout (BE-05). */
   disconnectController(tokenId: string): void {
     this.ns.controller.to(rooms.token(tokenId)).disconnectSockets(true);
