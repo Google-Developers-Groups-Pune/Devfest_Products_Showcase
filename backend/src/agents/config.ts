@@ -9,6 +9,10 @@ export interface AgentCallConfig {
   timeoutMs: number;
   /** Extra tries after the first one. */
   maxRetries: number;
+  /** Fixed sampling seed, where the model supports it. */
+  seed?: number;
+  /** Cap on the answer's length. */
+  maxOutputTokens?: number;
 }
 
 export type AgentsConfig = Record<AgentName, AgentCallConfig>;
@@ -28,7 +32,8 @@ export function agentsConfig(env: Env): AgentsConfig {
     treasure: { model: env.MODEL_TEXT ?? UNCONFIGURED_MODEL, temperature: 0.9, timeoutMs: 30_000, maxRetries: 2 },
     image: { model: env.IMAGE_MODEL ?? UNCONFIGURED_MODEL, temperature: 0.8, timeoutMs: 45_000, maxRetries: 2 },
     filter: { model: fast, temperature: 0, timeoutMs: 10_000, maxRetries: 2 },
-    guard: { model: fast, temperature: 0.2, timeoutMs: 15_000, maxRetries: 2 },
+    // BE-17: temperature 0, a fixed seed and about 400 output tokens.
+    guard: { model: fast, temperature: 0, seed: 7, maxOutputTokens: 400, timeoutMs: 15_000, maxRetries: 2 },
     emoji: { model: fast, temperature: 0.8, timeoutMs: 2_000, maxRetries: 0 },
   };
 }

@@ -165,7 +165,7 @@ describe('WinnersExportService', () => {
 
 // ------------------------------------------------------------ Firestore store, on in-memory repositories
 
-const ts = (iso: string) => ({ toDate: () => new Date(iso) }) as unknown as ResultDoc['confirmedAt'];
+const ts = (iso: string) => ({ toDate: () => new Date(iso) }) as unknown as NonNullable<ResultDoc['confirmedAt']>;
 
 interface SessionFixture {
   rounds: Record<string, { round: Partial<RoundDoc>; result?: Partial<ResultDoc> }>;

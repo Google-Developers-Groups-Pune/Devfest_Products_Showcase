@@ -125,7 +125,14 @@ export class FakeGuardAgent extends FakeAgent<'guard'> implements GuardAgent {
   score(input: GuardInput): Promise<GuardResult> {
     return this.run(() => {
       const score = Math.max(0, Math.min(100, Math.round(this.scoreFor(input))));
-      return { score, playerFeedback: feedbackFor(score), rubricVersion: input.rubric.version };
+      return {
+        score,
+        playerFeedback: feedbackFor(score),
+        rubricVersion: input.rubric.version,
+        promptVersion: 'fake',
+        model: this.model,
+        modelVersion: null,
+      };
     });
   }
 }

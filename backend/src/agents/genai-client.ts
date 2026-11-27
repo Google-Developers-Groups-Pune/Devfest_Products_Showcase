@@ -27,6 +27,8 @@ export function createGenAiClient(options: GenAiClientOptions): ModelClient {
           responseMimeType: 'application/json',
           responseJsonSchema: request.responseJsonSchema,
           temperature: request.temperature,
+          ...(request.seed === undefined ? {} : { seed: request.seed }),
+          ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
           abortSignal: request.signal,
         },
       });

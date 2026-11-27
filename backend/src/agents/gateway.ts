@@ -21,6 +21,9 @@ export interface ModelRequest {
   /** JSON Schema for structured output. */
   responseJsonSchema: unknown;
   temperature: number;
+  /** Set only for agents configured with one. */
+  seed?: number;
+  maxOutputTokens?: number;
   signal: AbortSignal;
 }
 
@@ -97,6 +100,8 @@ export class AiGateway {
             userParts: call.userParts,
             responseJsonSchema,
             temperature: config.temperature,
+            ...(config.seed === undefined ? {} : { seed: config.seed }),
+            ...(config.maxOutputTokens === undefined ? {} : { maxOutputTokens: config.maxOutputTokens }),
             signal,
           }),
         );
