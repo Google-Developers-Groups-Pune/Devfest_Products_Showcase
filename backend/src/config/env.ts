@@ -23,6 +23,8 @@ const EnvSchema = z.object({
   MODEL_GUARD: z.string().min(1).optional(),
   IMAGE_MODEL: z.string().min(1).optional(),
   IMAGE_MODEL_FALLBACK: z.string().min(1).optional(),
+  /** Art style put before every treasure image prompt (BE-35). Defaults to DEFAULT_IMAGE_STYLE. */
+  IMAGE_STYLE_PREFIX: z.string().min(1).optional(),
 
   // Domain (BE-38, D24)
   APP_DOMAIN: z.string().min(1).optional(),
