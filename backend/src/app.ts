@@ -13,6 +13,7 @@ import { controllerRouter } from './http/routes/controller/index.js';
 import { displayRouter } from './http/routes/display/index.js';
 import { healthRouter } from './http/routes/health.js';
 import { playerRouter } from './http/routes/player/index.js';
+import type { PromptsRouterDeps } from './http/routes/player/prompts.js';
 
 export interface AppDeps {
   clock: Clock;
@@ -29,6 +30,8 @@ export interface AppDeps {
   audit?: AuditLogService;
   /** Close event and its status, APIs 16 and 17 (BE-29). Optional until the server connects to Firestore. */
   events?: EventCloseService;
+  /** Prompt intake, API 24 (BE-21). Optional until the server connects to Firestore and BE-05 lands. */
+  prompts?: Omit<PromptsRouterDeps, 'clock'>;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -61,7 +64,7 @@ export function createApp(deps: AppDeps): Express {
       events: deps.events,
     }),
   );
-  app.use('/api/player', playerRouter());
+  app.use('/api/player', playerRouter({ prompts: deps.prompts && { ...deps.prompts, clock: deps.clock } }));
   app.use('/api/display', displayRouter());
 
   app.use(notFound());

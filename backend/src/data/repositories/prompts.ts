@@ -1,4 +1,4 @@
-import { Timestamp, type Firestore } from 'firebase-admin/firestore';
+import { Timestamp, type Firestore, type Transaction } from 'firebase-admin/firestore';
 import type { Clock } from '../../core/clock.js';
 import { promptIdFor } from '../ids.js';
 import { paths, type RoundRef } from '../paths.js';
@@ -19,6 +19,13 @@ export interface NewPrompt {
   playerId: string;
   idempotencyKey: string;
   rawText: string;
+  /** Receipt time taken by the caller (BE-21 takes it first thing). Defaults to the clock now. */
+  receivedAt?: Date;
+  /**
+   * Extra checks inside the same transaction, after the duplicate check and before any write
+   * (BE-21: phase, player state, roundEndAt). Do reads only; throw to refuse the prompt.
+   */
+  check?: (tx: Transaction, round: RoundDoc) => Promise<void>;
 }
 
 export interface CreatedPrompt {
@@ -44,7 +51,7 @@ export function promptRepository(db: Firestore, clock: Clock, round: RoundRef) {
      */
     async create(input: NewPrompt): Promise<CreatedPrompt> {
       const promptId = promptIdFor(input.playerId, input.idempotencyKey);
-      const receivedAt = Timestamp.fromDate(clock.now());
+      const receivedAt = Timestamp.fromDate(input.receivedAt ?? clock.now());
       const roundRef = rounds.ref(round.roundId);
       const promptRef = prompts.ref(promptId);
 
@@ -55,6 +62,7 @@ export function promptRepository(db: Firestore, clock: Clock, round: RoundRef) {
           const roundDoc = roundSnap.data();
           if (roundDoc === undefined) throw new DocumentNotFoundError('round');
           if (promptSnap.exists) throw new DuplicateDocumentError('prompt', promptId);
+          if (input.check) await input.check(tx, roundDoc);
 
           const next = roundDoc.promptCounter + 1;
           tx.update(roundRef, { promptCounter: next });
