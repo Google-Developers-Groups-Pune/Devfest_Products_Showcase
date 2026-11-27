@@ -21,7 +21,12 @@ export function createGenAiClient(options: GenAiClientOptions): ModelClient {
       const response = await ai.models.generateContent({
         model: request.model,
         // Player text goes in its own user parts, never into the system instruction.
-        contents: [{ role: 'user', parts: request.userParts.map((text) => ({ text })) }],
+        contents: [
+          {
+            role: 'user',
+            parts: request.userParts.map((part) => (typeof part === 'string' ? { text: part } : { inlineData: part })),
+          },
+        ],
         config: {
           systemInstruction: request.systemInstruction,
           responseMimeType: 'application/json',

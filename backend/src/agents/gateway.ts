@@ -12,12 +12,22 @@ import type { AgentName } from './types.js';
  * `@google/genai` client stays a thin adapter (`genai-client.ts`).
  */
 
+/** Binary input for a multimodal call, such as an image to check. */
+export interface InlineDataPart {
+  mimeType: string;
+  /** Base64. */
+  data: string;
+}
+
+/** One part of the user message: text, or binary data. */
+export type UserPart = string | InlineDataPart;
+
 export interface ModelRequest {
   model: string;
   /** Trusted text only: server instructions and pinned game data. */
   systemInstruction: string;
   /** Untrusted data, such as player text. Each entry is its own part, never joined into the instruction. */
-  userParts: string[];
+  userParts: UserPart[];
   /** JSON Schema for structured output. */
   responseJsonSchema: unknown;
   temperature: number;
@@ -40,7 +50,7 @@ export interface ModelClient {
 export interface StructuredCall<T> {
   agent: AgentName;
   systemInstruction: string;
-  userParts: string[];
+  userParts: UserPart[];
   /** Validates the model's answer. Put ranges here (`.min()`, `.max()`), so out-of-range values are rejected. */
   schema: z.ZodType<T>;
   /** Overrides the agent's configured retries for this call. */
