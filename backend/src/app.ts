@@ -8,19 +8,22 @@ import { controllerRouter } from './http/routes/controller/index.js';
 import { displayRouter } from './http/routes/display/index.js';
 import { healthRouter } from './http/routes/health.js';
 import { playerRouter } from './http/routes/player/index.js';
+import type { ControllerAuthService } from './services/controller-auth.js';
 
 export interface AppDeps {
   clock: Clock;
   logger: Logger;
   /** Browser origins allowed to call the API (the Flutter app's origin). Empty = none. */
   corsOrigins: string[];
+  /** Controller login and token checks (BE-05). */
+  controllerAuth: ControllerAuthService;
 }
 
 export function createApp(deps: AppDeps): Express {
   const app = express();
   app.disable('x-powered-by');
-  // Lets req.ip use X-Forwarded-For from one proxy hop. Before relying on req.ip
-  // for per-IP rate limits (BE-12), confirm the hop count on Cloud Run (BE-38).
+  // Lets req.ip use X-Forwarded-For from one proxy hop. The login limit (BE-05) and
+  // rejoin limit (BE-12) are per IP: confirm the hop count on Cloud Run (BE-38).
   app.set('trust proxy', 1);
 
   app.use(correlationId());
@@ -36,7 +39,7 @@ export function createApp(deps: AppDeps): Express {
   app.use(express.json({ limit: '32kb' }));
 
   app.use(healthRouter());
-  app.use('/api/controller', controllerRouter());
+  app.use('/api/controller', controllerRouter(deps.controllerAuth));
   app.use('/api/player', playerRouter());
   app.use('/api/display', displayRouter());
 
