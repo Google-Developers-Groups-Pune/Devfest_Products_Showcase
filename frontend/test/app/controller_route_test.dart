@@ -8,7 +8,7 @@ import 'test_app.dart';
 void main() {
   testWidgets('controller route loads its deferred code', (tester) async {
     final router = await pumpApp(tester);
-    await goToDeferredRoute(tester, router, AppRoutes.controller, find.text('Controller'));
-    expect(find.text('Controller'), findsOneWidget);
+    await goToDeferredRoute(tester, router, AppRoutes.controller, find.text('Sign in to run the booth'));
+    expect(find.text('Sign in to run the booth'), findsOneWidget);
   });
 }

@@ -73,6 +73,32 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Bundled, never fetched at runtime (booth Wi-Fi can't be trusted).
+  # All SIL OFL 1.1; the licences are beside the files in assets/fonts.
+  fonts:
+    - family: AppSans
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+    - family: AppMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+    # Noto Color Emoji subset to faces and common reactions (156 KB, COLRv1
+    # only). The full font is 25 MB and every route downloads it at start-up.
+    # Emoji outside the subset use Flutter's own Noto fallback.
+    - family: AppEmoji
+      fonts:
+        - asset: assets/fonts/NotoColorEmoji.ttf
+    # FE-26: Google Sans and Google Sans Code for the Controller and gallery.
+    # Subset to Latin.
+    - family: GoogleSans
+      fonts:
+        - asset: assets/fonts/GoogleSans.ttf
+    - family: GoogleSansCode
+      fonts:
+        - asset: assets/fonts/GoogleSansCode.ttf
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
