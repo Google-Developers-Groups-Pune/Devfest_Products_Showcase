@@ -26,6 +26,11 @@ export interface FilterResult {
   decision: FilterDecision;
   /** Short reason for the server only. Never sent to a player (decision D50). */
   reason: string;
+  /**
+   * True when the filter could not decide (timeout, bad output, model error) and blocked to
+   * stay safe. Callers record it as an agent error, not as a real block.
+   */
+  failedClosed?: true;
 }
 
 /** The player-visible part of a treasure, checked before the Controller sees it. */

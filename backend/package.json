@@ -16,6 +16,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "filter:fixtures": "node --env-file-if-exists=.env --import tsx scripts/filter-fixtures.ts",
     "event:reset": "node --env-file-if-exists=.env --import tsx scripts/event-reset.ts",
     "test:emulator": "firebase emulators:exec --only firestore --project demo-prompt-heist \"vitest run\""
   },
