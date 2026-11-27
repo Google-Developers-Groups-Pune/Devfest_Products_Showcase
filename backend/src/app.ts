@@ -5,6 +5,7 @@ import type { AgentHealthService } from './agents/health.js';
 import type { AuditLogService } from './services/audit-log.js';
 import type { EventCloseService } from './services/event-close.js';
 import type { RoundMonitorService } from './services/round-monitor.js';
+import type { StartRoundService } from './services/start-round.js';
 import type { WinnersExportService } from './services/winners-export.js';
 import type { Clock } from './core/clock.js';
 import { CORRELATION_HEADER, correlationId } from './http/middleware/correlation-id.js';
@@ -30,6 +31,8 @@ export interface AppDeps {
   audit?: AuditLogService;
   /** Close event and its status, APIs 16 and 17 (BE-29). Optional until the server connects to Firestore. */
   events?: EventCloseService;
+  /** Start round and the round timer, API 10 (BE-20). Optional until the server connects to Firestore. */
+  rounds?: StartRoundService;
   /** Prompt intake, API 24 (BE-21). Optional until the server connects to Firestore and BE-05 lands. */
   prompts?: Omit<PromptsRouterDeps, 'clock'>;
 }
@@ -62,6 +65,7 @@ export function createApp(deps: AppDeps): Express {
       monitor: deps.monitor,
       audit: deps.audit,
       events: deps.events,
+      rounds: deps.rounds,
     }),
   );
   app.use('/api/player', playerRouter({ prompts: deps.prompts && { ...deps.prompts, clock: deps.clock } }));
