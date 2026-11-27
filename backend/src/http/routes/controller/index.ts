@@ -3,10 +3,12 @@ import type { AgentHealthService } from '../../../agents/health.js';
 import type { AuditLogService } from '../../../services/audit-log.js';
 import type { EventCloseService } from '../../../services/event-close.js';
 import type { RoundMonitorService } from '../../../services/round-monitor.js';
+import type { StartRoundService } from '../../../services/start-round.js';
 import type { WinnersExportService } from '../../../services/winners-export.js';
 import { agentHealthRouter } from './agent-health.js';
 import { eventRouter } from './event.js';
 import { auditLogRouter, roundMonitorRouter } from './monitor.js';
+import { startRoundRouter } from './start-round.js';
 import { winnersRouter } from './winners.js';
 
 export interface ControllerRouterDeps {
@@ -19,6 +21,8 @@ export interface ControllerRouterDeps {
   audit?: AuditLogService | undefined;
   /** APIs 16 and 17 (BE-29). Mounted only when given, like `winners`. */
   events?: EventCloseService | undefined;
+  /** API 10 (BE-20). Mounted only when given, like `winners`. */
+  rounds?: StartRoundService | undefined;
 }
 
 /**
@@ -33,5 +37,6 @@ export function controllerRouter(deps: ControllerRouterDeps): Router {
   if (deps.monitor) router.use(roundMonitorRouter(deps.monitor));
   if (deps.audit) router.use(auditLogRouter(deps.audit));
   if (deps.events) router.use(eventRouter(deps.events));
+  if (deps.rounds) router.use(startRoundRouter(deps.rounds, deps.events));
   return router;
 }
